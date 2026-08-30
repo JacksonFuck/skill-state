@@ -1,0 +1,10 @@
+{
+  "seq": 2,
+  "base_seq": 1,
+  "autor": "claude/selftest",
+  "quando": "2026-08-30T00:10:00Z",
+  "motivo": "delta tentando escrever na zona do runtime — deve rejeitar antes do merge",
+  "delta": {
+    "meta": { "patch_seq": 99 }
+  }
+}

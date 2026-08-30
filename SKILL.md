@@ -1,0 +1,109 @@
+---
+name: skill-state
+description: >
+  Protocolo de estado de execução para trabalho de longo horizonte (baseado no paper
+  SKILL.state, arXiv:2608.26263). Use SEMPRE que: (a) retomar trabalho num projeto/pasta que
+  tenha STATE.json; (b) concluir um passo relevante, encontrar bloqueio ou tomar decisão que a
+  próxima sessão precisa saber; (c) for escrever handoff/passagem de bastão (o patch vem
+  primeiro); (d) o contexto estiver prestes a compactar; (e) iniciar trabalho multi-sessão num
+  projeto que ainda NÃO tem STATE.json (proponha o init). Substitui memória conversacional por
+  Σ estruturado + patches ΔΣ validados deterministicamente e registrados em trilha append-only.
+---
+
+# skill-state — estado explícito em vez de histórico conversacional
+
+## A ideia em 4 linhas
+
+O que você precisa lembrar entre sessões NÃO mora na conversa (ela compacta, envenena e mente) —
+mora em `STATE.json` (Σ), um snapshot estruturado e validado por schema. Você lê Σ, trabalha, e
+projeta o que importa num **patch ΔΣ** que um runtime determinístico valida ANTES de aplicar.
+O raciocínio é efêmero; o estado é permanente; a trilha de patches é auditável.
+
+## Quando esta skill se aplica (gatilhos)
+
+| Situação | Ação |
+|---|---|
+| Sessão nova num projeto com `STATE.json` | O hook SessionStart já injetou Σ — confie no `PRÓXIMO PASSO`; se STALE, re-derive da fonte primeiro |
+| Passo concluído / decisão tomada / bloqueio encontrado | Proponha ΔΣ **agora**, não no fim da sessão |
+| Vai escrever handoff, resumo de sessão, "onde paramos" | Patch primeiro; a prosa cita o `seq` do patch |
+| Contexto prestes a compactar | Flush do ΔΣ pendente antes (o hook PreCompact lembra, mas é best-effort) |
+| Trabalho multi-sessão começando num projeto SEM STATE.json | Proponha `init` + genesis (ver README §Instalação) |
+| Tarefa de sessão única, pergunta pontual, exploração | **Não se aplica** — não crie estado para o que morre com a conversa |
+
+## Anatomia (por projeto ou por área de trabalho)
+
+| Arquivo | Papel | Quem escreve |
+|---|---|---|
+| `STATE.json` | Σ — snapshot atual | só o runtime (`cli.mjs apply`) |
+| `STATE.schema.json` | contrato do domínio | humano/agente, raramente (mudança revisada) |
+| `patches.jsonl` | trilha append-only de ΔΣ, hash-encadeada | só o runtime |
+
+Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
+`SKILL_STATE_DIR` — um diretório por fluxo de trabalho, ex.: um por spec).
+
+## O Σ tem duas zonas com autoridade DIFERENTE
+
+- **`derivado_de_github`** — cache carimbado (`verificado_em`) do que vive numa fonte externa
+  (issues, PRs, CI, sha da base). **A fonte vence, sempre.** Se `verify` disser `stale`,
+  re-derive antes de confiar — e o primeiro patch da sessão é a re-derivação. Nunca cite este
+  bloco como fato sem checar o carimbo.
+- **`intencao`** — o que a fonte externa NÃO sabe: próximo passo, pendências, bloqueios,
+  avisos operacionais. Aqui o STATE.json é autoritativo.
+- `spec` + `schema_version` são o P imutável; `meta` é do runtime. Patch que os toque é
+  rejeitado (`forbidden-key`).
+
+## Fluxo obrigatório
+
+1. **Ao retomar:** leia o Σ injetado pelo hook (ou `cli.mjs context`). Aja pelo
+   `PRÓXIMO PASSO`.
+2. **Trabalhe.** Raciocínio, tentativas e leituras são efêmeros — não precisam sobreviver.
+3. **Mudou algo que a próxima sessão precisa saber?** Escreva o envelope num arquivo
+   temporário e aplique:
+
+   ```bash
+   node .claude/skills/skill-state/bin/cli.mjs apply --patch /tmp/patch.json
+   ```
+
+   Envelope (spec completa em `references/patch-format.md`):
+
+   ```json
+   { "seq": <meta.patch_seq + 1>, "base_seq": <meta.patch_seq atual>,
+     "autor": "claude/<branch>", "quando": "<ISO-8601 UTC>",
+     "motivo": "1 frase — por que este patch existe",
+     "delta": { "intencao": { "proximo_passo": "..." } } }
+   ```
+
+4. **Rejeitado?** Leia `issues[]` (path + code + message), corrija e re-proponha — **máx 2
+   retries**; na 3ª falha, pare e registre o problema para um humano. Nunca force, nunca
+   edite `STATE.json` à mão.
+5. **Antes de encerrar/compactar:** flush do ΔΣ pendente — a responsabilidade é sua, o hook
+   só lembra.
+6. **Handoffs em prosa:** patch primeiro; o texto cita o `seq`. Divergência entre prosa e
+   STATE.json? O `verify` decide.
+
+## Regras duras
+
+- **NUNCA** edite `STATE.json` ou `patches.jsonl` à mão — `verify` detecta
+  (replay ≠ snapshot) e o estado passa a valer nada. Só via `cli.mjs apply`.
+- Arrays no delta são **substituição atômica** (mande a lista inteira); `null` **deleta** a
+  chave; chave fora do schema **rejeita** — typo não vira chave-fantasma.
+- `base_seq` deve ser o `meta.patch_seq` atual — dois agentes em paralelo: o segundo relê Σ e
+  re-propõe (concorrência otimista).
+- Patch **suspeito** merece verificação adversarial ANTES de aplicar: deleção de >3 chaves,
+  reescrita integral de uma lista de fases, ou `proximo_passo` que contradiz bloqueio aberto.
+  Se o projeto tiver uma skill de verificação adversarial (judge), use-a sobre o delta; senão,
+  re-derive da fonte externa e, na dúvida, pergunte ao humano. Schema pega forma; não pega
+  mentira de intenção.
+- O Σ não é lugar de prosa: campo novo recorrente → evolua o `STATE.schema.json` numa mudança
+  revisada, não contrabandeie texto livre.
+
+## Verificação
+
+```bash
+node .claude/skills/skill-state/bin/cli.mjs verify     # cadeia + replay + staleness
+node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 9/9
+```
+
+Teste de aceitação de qualquer patch: uma sessão nova, lendo SÓ o contexto injetado, responde
+"qual o próximo passo?" sem abrir mais nada. Se não responder, o último patch falhou —
+registre a lacuna como pendência.

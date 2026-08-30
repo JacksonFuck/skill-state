@@ -1,0 +1,12 @@
+{
+  "seq": 2,
+  "base_seq": 1,
+  "autor": "claude/selftest",
+  "quando": "2026-08-30T00:10:00Z",
+  "motivo": "tipo incoerente — modo de erro nº 2 do paper (20%)",
+  "delta": {
+    "derivado_de_github": {
+      "testes": { "verdes": "todos" }
+    }
+  }
+}

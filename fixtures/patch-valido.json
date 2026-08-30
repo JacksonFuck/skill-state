@@ -1,0 +1,18 @@
+{
+  "seq": 2,
+  "base_seq": 1,
+  "autor": "claude/selftest",
+  "quando": "2026-08-30T00:10:00Z",
+  "motivo": "concluiu X; remove o bloqueio (array atômico) e a nota temporária (null-deletion)",
+  "delta": {
+    "derivado_de_github": {
+      "verificado_em": "2026-08-30T00:10:00Z",
+      "testes": { "verdes": 11, "total": 11 }
+    },
+    "intencao": {
+      "proximo_passo": "Fazer Y.",
+      "bloqueios": [],
+      "nota_temporaria": null
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "seq": 1,
+  "base_seq": 0,
+  "autor": "claude/selftest",
+  "quando": "2026-08-30T00:10:00Z",
+  "motivo": "proposto sobre um Σ que já avançou — concorrência otimista deve rejeitar",
+  "delta": {
+    "intencao": {
+      "proximo_passo": "Fazer Z."
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "seq": 1,
+  "base_seq": 0,
+  "autor": "claude/<branch-ou-quem-propoe>",
+  "quando": "<ISO-8601 UTC, ex.: 2026-08-30T12:00:00Z>",
+  "motivo": "genesis: estado inicial re-derivado da fonte de verdade (issues/PRs/CI) em <data>",
+  "delta": {
+    "schema_version": 1,
+    "spec": {
+      "plano": "<caminho do plano/spec que rege este trabalho, ex.: docs/PLANO.md>",
+      "regras": ["<arquivos de regras que toda sessão deve respeitar, ex.: CONTRIBUTING.md>"]
+    },
+    "derivado_de_github": {
+      "verificado_em": "<ISO-8601 UTC — quando você CONFERIU na fonte>",
+      "main_sha": "<sha completo da ref base (origin/main) no momento da conferência>",
+      "testes": { "total": 0, "verdes": 0, "comando": "<como rodar a suíte>" },
+      "fases": [
+        { "fase": "<nome>", "issue": null, "pr": null, "status": "aberta", "nota": "" }
+      ]
+    },
+    "intencao": {
+      "proximo_passo": "<1 frase imperativa: o que a próxima sessão deve fazer primeiro>",
+      "pendencias": [
+        { "id": "p-exemplo", "texto": "<o que falta>", "dono": "humano", "origem": "genesis" }
+      ],
+      "bloqueios": [],
+      "avisos_operacionais": ["<armadilhas operacionais, ex.: rodar npm ci após pull>"]
+    }
+  }
+}

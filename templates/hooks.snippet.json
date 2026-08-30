@@ -1,0 +1,25 @@
+{
+  "//": "Cole estas duas chaves dentro do objeto 'hooks' do settings.json (crie o objeto se não existir; preserve hooks já configurados). Instalação NO PROJETO: <repo>/.claude/settings.json, comandos como estão. Instalação GLOBAL: ~/.claude/settings.json, trocando o caminho do script por \"$HOME/.claude/skills/skill-state/bin/cli.mjs\" nos dois comandos. Estado fora de .skill-state/: acrescente '--dir <pasta>' ou exporte SKILL_STATE_DIR.",
+  "SessionStart": [
+    {
+      "matcher": "startup|resume|compact",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context 2>/dev/null || true"
+        }
+      ]
+    }
+  ],
+  "PreCompact": [
+    {
+      "matcher": "auto|manual",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check 2>/dev/null || true"
+        }
+      ]
+    }
+  ]
+}

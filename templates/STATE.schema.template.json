@@ -1,0 +1,99 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "skill-state Σ — domínio: execução de desenvolvimento (edite as properties de intencao/derivado_de_github para o seu projeto; mantenha as 4 zonas e additionalProperties:false)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "spec", "derivado_de_github", "intencao", "meta"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plano", "regras"],
+      "properties": {
+        "plano": { "type": "string" },
+        "regras": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "derivado_de_github": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verificado_em", "main_sha", "testes", "fases"],
+      "properties": {
+        "verificado_em": { "type": "string" },
+        "main_sha": { "type": "string" },
+        "testes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "verdes", "comando"],
+          "properties": {
+            "total": { "type": "integer" },
+            "verdes": { "type": "integer" },
+            "comando": { "type": "string" }
+          }
+        },
+        "fases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["fase", "status"],
+            "properties": {
+              "fase": { "type": "string" },
+              "issue": { "type": ["integer", "null"] },
+              "pr": { "type": ["integer", "null"] },
+              "status": { "enum": ["aberta", "em-andamento", "pr-aberto", "mergeada", "fatia-parcial"] },
+              "nota": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "intencao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proximo_passo", "pendencias", "bloqueios", "avisos_operacionais"],
+      "properties": {
+        "proximo_passo": { "type": "string" },
+        "pendencias": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "texto", "dono"],
+            "properties": {
+              "id": { "type": "string" },
+              "texto": { "type": "string" },
+              "dono": { "enum": ["humano", "agente"] },
+              "origem": { "type": "string" }
+            }
+          }
+        },
+        "bloqueios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "texto"],
+            "properties": {
+              "id": { "type": "string" },
+              "texto": { "type": "string" }
+            }
+          }
+        },
+        "avisos_operacionais": { "type": "array", "items": { "type": "string" } },
+        "nota_temporaria": { "type": "string" }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patch_seq", "ultimo_hash", "atualizado_em"],
+      "properties": {
+        "patch_seq": { "type": "integer" },
+        "ultimo_hash": { "type": "string" },
+        "atualizado_em": { "type": "string" }
+      }
+    }
+  }
+}

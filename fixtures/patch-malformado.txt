@@ -1,0 +1,1 @@
+{ "seq": 2, "base_seq": 1, "autor": "claude/selftest", "delta": { "intencao": { "proximo_passo": "Fazer Y.", } }

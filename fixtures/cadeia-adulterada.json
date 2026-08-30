@@ -1,0 +1,86 @@
+[
+  {
+    "envelope": {
+      "seq": 1,
+      "base_seq": 0,
+      "autor": "claude/selftest",
+      "quando": "2026-08-30T00:00:00Z",
+      "motivo": "genesis do fixture",
+      "delta": {
+        "schema_version": 1,
+        "spec": {
+          "plano": "fixtures/PLANO-EXEMPLO.md",
+          "regras": [
+            "CONTRIBUTING.md"
+          ]
+        },
+        "derivado_de_github": {
+          "verificado_em": "2026-08-30T00:00:00Z",
+          "main_sha": "0000000000000000000000000000000000000000",
+          "testes": {
+            "total": 10,
+            "verdes": 10,
+            "comando": "npx vitest run"
+          },
+          "fases": [
+            {
+              "fase": "S1",
+              "issue": 1,
+              "pr": 2,
+              "status": "mergeada",
+              "nota": ""
+            }
+          ]
+        },
+        "intencao": {
+          "proximo_passo": "Fazer X.",
+          "pendencias": [
+            {
+              "id": "p-1",
+              "texto": "pendência um",
+              "dono": "humano",
+              "origem": "sessao-1"
+            }
+          ],
+          "bloqueios": [
+            {
+              "id": "b-1",
+              "texto": "bloqueio um"
+            }
+          ],
+          "avisos_operacionais": [
+            "npm ci após pull"
+          ],
+          "nota_temporaria": "apagar depois"
+        }
+      }
+    },
+    "prev_hash": "genesis",
+    "hash": "1ee67e7ceedffa10f70ae909aed1d716a7d0b2d648d70920389bba6634401f9f"
+  },
+  {
+    "envelope": {
+      "seq": 2,
+      "base_seq": 1,
+      "autor": "claude/selftest",
+      "quando": "2026-08-30T00:10:00Z",
+      "motivo": "concluiu X; remove o bloqueio (array atômico) e a nota temporária (null-deletion)",
+      "delta": {
+        "derivado_de_github": {
+          "verificado_em": "2026-08-30T00:10:00Z",
+          "testes": {
+            "verdes": 11,
+            "total": 11
+          }
+        },
+        "intencao": {
+          "proximo_passo": "Fazer Y.",
+          "bloqueios": [],
+          "nota_temporaria": null
+        }
+      }
+    },
+    "prev_hash": "1ee67e7ceedffa10f70ae909aed1d716a7d0b2d648d70920389bba6634401f9f",
+    "hash": "7e3bb1e7502a3fec588693be19a18915d34ba3b1070c80cd4cadf2e2ea6d9550"
+  }
+]

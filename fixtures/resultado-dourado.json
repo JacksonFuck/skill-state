@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "spec": {
+    "plano": "fixtures/PLANO-EXEMPLO.md",
+    "regras": [
+      "CONTRIBUTING.md"
+    ]
+  },
+  "derivado_de_github": {
+    "verificado_em": "2026-08-30T00:10:00Z",
+    "main_sha": "0000000000000000000000000000000000000000",
+    "testes": {
+      "total": 11,
+      "verdes": 11,
+      "comando": "npx vitest run"
+    },
+    "fases": [
+      {
+        "fase": "S1",
+        "issue": 1,
+        "pr": 2,
+        "status": "mergeada",
+        "nota": ""
+      }
+    ]
+  },
+  "intencao": {
+    "proximo_passo": "Fazer Y.",
+    "pendencias": [
+      {
+        "id": "p-1",
+        "texto": "pendência um",
+        "dono": "humano",
+        "origem": "sessao-1"
+      }
+    ],
+    "bloqueios": [],
+    "avisos_operacionais": [
+      "npm ci após pull"
+    ]
+  },
+  "meta": {
+    "patch_seq": 2,
+    "ultimo_hash": "7e3bb1e7502a3fec588693be19a18915d34ba3b1070c80cd4cadf2e2ea6d955d",
+    "atualizado_em": "2026-08-30T00:10:00Z"
+  }
+}

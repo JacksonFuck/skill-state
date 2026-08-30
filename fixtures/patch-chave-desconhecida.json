@@ -1,0 +1,12 @@
+{
+  "seq": 2,
+  "base_seq": 1,
+  "autor": "claude/selftest",
+  "quando": "2026-08-30T00:10:00Z",
+  "motivo": "typo de chave — o modo de erro nº 1 do paper (68%): sem schema fechado viraria chave-fantasma silenciosa",
+  "delta": {
+    "intencao": {
+      "proximoPasso": "Fazer Y."
+    }
+  }
+}
