@@ -3,10 +3,11 @@
   "base_seq": 1,
   "autor": "claude/selftest",
   "quando": "2026-08-30T00:10:00Z",
-  "motivo": "typo de chave no delta — unknown-key; sem schema fechado viraria chave-fantasma",
+  "motivo": "chave extra no envelope não pode persistir",
+  "foo": true,
   "delta": {
     "intencao": {
-      "proximoPasso": "Fazer Y."
+      "proximo_passo": "Probe."
     }
   }
 }

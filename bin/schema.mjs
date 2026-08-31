@@ -7,10 +7,10 @@
  * despercebido. Se o schema do domínio precisar de mais, o lugar é uma
  * implementação tipada com validador completo — não aqui.
  *
- * As issues devolvidas usam os códigos da taxonomia de erros do paper SKILL.state §5.7,
- * na ordem de frequência observada lá: `unknown-key` (68% — sobrescrita/deleção acidental),
- * `type-mismatch` (20%), `malformed` (12%) — mais os códigos do próprio protocolo:
- * `forbidden-key`, `stale-base`, `invalid-seq`, `duplicate-id`, `schema-error`.
+ * Códigos: `unknown-key` (typo / chave extra), `type-mismatch` (20% no paper §5.7),
+ * `malformed` (12%). O 68% do paper é omissão/overwrite — defendido pelo merge-patch
+ * (chave omitida não apaga). Mais os do protocolo: `forbidden-key`, `stale-base`,
+ * `invalid-seq`, `duplicate-id`, `schema-error`.
  */
 
 function tipoDe(valor) {

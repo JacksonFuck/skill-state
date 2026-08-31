@@ -101,7 +101,7 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 
 ```bash
 node .claude/skills/skill-state/bin/cli.mjs verify     # cadeia + replay + staleness
-node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 13/13
+node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 20/20
 ```
 
 Teste de aceitação de qualquer patch: uma sessão nova, lendo SÓ o contexto injetado, responde
