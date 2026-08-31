@@ -10,7 +10,7 @@
  * As issues devolvidas usam os códigos da taxonomia de erros do paper SKILL.state §5.7,
  * na ordem de frequência observada lá: `unknown-key` (68% — sobrescrita/deleção acidental),
  * `type-mismatch` (20%), `malformed` (12%) — mais os códigos do próprio protocolo:
- * `forbidden-key`, `stale-base`, `duplicate-id`, `schema-error`.
+ * `forbidden-key`, `stale-base`, `invalid-seq`, `duplicate-id`, `schema-error`.
  */
 
 function tipoDe(valor) {

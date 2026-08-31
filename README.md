@@ -97,9 +97,10 @@ O erro clássico de arquivos de estado é tratá-los como fatos. Aqui o schema s
 
 Objeto = merge recursivo; `null` = deleta a chave; escalar = substitui; **array =
 substituição atômica** (mande a lista inteira — sem append/índice, sem duplicação silenciosa).
-Seis códigos de rejeição, mapeados na taxonomia de erros que o paper mediu em modelos menores
-(68% sobrescrita acidental / 20% tipo / 12% JSON malformado): `unknown-key`, `type-mismatch`,
-`malformed`, `forbidden-key`, `stale-base`, `duplicate-id`. A validação roda sobre o
+Sete códigos de rejeição, mapeados na taxonomia de erros que o paper mediu em modelos menores
+(68% sobrescrita acidental / 20% tipo / 12% JSON malformado) mais os do protocolo:
+`unknown-key`, `type-mismatch`, `malformed`, `forbidden-key`, `stale-base`, `invalid-seq`,
+`duplicate-id`. A validação roda sobre o
 **resultado** Σ⊕ΔΣ, não só sobre o delta — deletar uma chave obrigatória também rejeita.
 Spec completa: `references/patch-format.md`.
 
@@ -142,7 +143,7 @@ git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state        # global
 
 # 2. selftest (prova que o runtime funciona nesta máquina)
-node <destino>/skill-state/bin/cli.mjs selftest                    # → 9/9 verdes
+node <destino>/skill-state/bin/cli.mjs selftest                    # → 13/13 verdes
 
 # 3. hooks: cole templates/hooks.snippet.json no objeto "hooks" do settings.json
 #    (do projeto ou o global ~/.claude/settings.json — ver INSTALL.md)
@@ -168,7 +169,7 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 | `verify` | cadeia íntegra + `replay==STATE.json` + staleness vs ref base | `{ok,cadeia,replay_ok,stale,...}` |
 | `context` | JSON de hook SessionStart com Σ resumido | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 9 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 13 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
@@ -243,3 +244,8 @@ Os endurecimentos desta implementação — schema fechado, `base_seq` otimista,
 hash-encadeada, validação sobre o resultado do merge, hooks de re-injeção — nasceram de
 adoção em produção num monorepo real, onde o primeiro genesis flagrou a documentação de
 estado do próprio projeto mentindo havia seis semanas. v1.0.0.
+
+Obrigado a [@tcconnally](https://github.com/tcconnally) pela [issue #1](https://github.com/JacksonFuck/skill-state/issues/1):
+`apply` aceitava `seq` não-contíguo e só o `verify` acusava depois. O código `invalid-seq`,
+a rejeição antes de gravar e os fixtures de contiguidade existem por esse relatório —
+repro, expected e os cinco casos de teste vieram prontos.
