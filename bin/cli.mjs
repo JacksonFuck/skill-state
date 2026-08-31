@@ -4,8 +4,8 @@
  * Kit portátil: zero dependências npm; requer Node ≥ 20 (WebCrypto global).
  *
  * Subcomandos:
- *   init         → cria o diretório de estado + STATE.schema.json do template e imprime o genesis a preencher
- *   context      → emite hookSpecificOutput p/ SessionStart (injeta Σ resumido no contexto)
+ *   init         → cria o diretório de estado + STATE.schema.json (--domain dev|ops|pesquisa)
+ *   context      → injeta Σ resumido (qualquer host no resume; Claude Code via SessionStart)
  *   flush-check  → aviso best-effort p/ PreCompact (Σ possivelmente não flushado)
  *   validate     → valida um patch SEM aplicar (--patch <arquivo>)
  *   apply        → valida e aplica atômico (--patch <arquivo> [--dry-run])
@@ -14,12 +14,14 @@
  *
  * Configuração (todas opcionais):
  *   --dir <pasta>            diretório com STATE.json/STATE.schema.json/patches.jsonl
+ *   --domain <dev|ops|pesquisa>  schema do init (default: dev)
  *   SKILL_STATE_DIR          idem, via ambiente (default: .skill-state)
  *   CLAUDE_PROJECT_DIR       raiz do projeto (default: diretório de trabalho atual)
  *   SKILL_STATE_BASE_REF     ref git p/ staleness (default: origin/main)
  */
 import {
   readFileSync, writeFileSync, appendFileSync, renameSync, existsSync, statSync, mkdirSync, copyFileSync,
+  openSync, closeSync, unlinkSync, fsyncSync, writeSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, dirname, relative, isAbsolute } from "node:path";
@@ -53,6 +55,8 @@ const caminhos = {
   estado: join(dir, "STATE.json"),
   schema: join(dir, "STATE.schema.json"),
   log: join(dir, "patches.jsonl"),
+  journal: join(dir, "apply.journal"),
+  lock: join(dir, "apply.lock"),
 };
 
 const lerJson = (caminho) => JSON.parse(readFileSync(caminho, "utf8"));
@@ -117,6 +121,10 @@ function validarPatch(estado, schema, envelope) {
     }
   }
   if (issues.length > 0) return { issues, resultado: null };
+  const alias = reescreverAliases(envelope.delta, "$.delta");
+  issues.push(...alias.issues);
+  if (issues.length > 0) return { issues, resultado: null };
+  envelope = { ...envelope, delta: alias.delta };
   issues.push(...validarRegrasDoProtocolo(null, envelope.delta).filter(
     // no bootstrap (seq 0→1) o delta PRECISA criar spec/schema_version; meta segue proibida
     (p) => seqAtual !== 0 || p.path === "$.meta",
@@ -127,7 +135,40 @@ function validarPatch(estado, schema, envelope) {
   issues.push(...validarContraSchema(resultado, schema));
   issues.push(...validarRegrasDoProtocolo(resultado, {}));
   if (issues.length === 0) issues.push(...validarLargeReplace(estado, resultado, envelope));
-  return { issues, resultado: issues.length === 0 ? resultado : null };
+  return { issues, resultado: issues.length === 0 ? resultado : null, envelope };
+}
+
+const ALIASES_EN = {
+  next_step: "proximo_passo",
+  pending_items: "pendencias",
+  blockers: "bloqueios",
+  operational_warnings: "avisos_operacionais",
+  verified_at: "verificado_em",
+  incidents: "incidentes",
+  hypotheses: "hipoteses",
+};
+
+/** Expande aliases EN no delta para chaves canônicas; não traduz Σ já gravado. */
+function reescreverAliases(delta, caminho) {
+  const issues = [];
+  const walk = (obj, path) => {
+    if (obj === null || typeof obj !== "object" || Array.isArray(obj)) return obj;
+    const saida = {};
+    for (const [chave, valor] of Object.entries(obj)) {
+      const canon = ALIASES_EN[chave] ?? chave;
+      if (canon !== chave && Object.hasOwn(obj, canon)) {
+        issues.push({ path: `${path}.${chave}`, code: "malformed", message: `alias ${chave} colide com ${canon}` });
+        continue;
+      }
+      if (Object.hasOwn(saida, canon) && canon !== chave) {
+        issues.push({ path: `${path}.${chave}`, code: "malformed", message: `alias ${chave} colide com ${canon}` });
+        continue;
+      }
+      saida[canon] = walk(valor, `${path}.${canon}`);
+    }
+    return saida;
+  };
+  return { delta: walk(delta, caminho), issues };
 }
 
 const LISTAS_PROTEGIDAS = [
@@ -157,6 +198,87 @@ function validarLargeReplace(estado, resultado, envelope) {
   return issues;
 }
 
+function pidVivo(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function dormir(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+/** Lock exclusivo no dir de estado. Processo morto libera (PID no arquivo). */
+function adquirirLock() {
+  mkdirSync(dir, { recursive: true });
+  const inicio = Date.now();
+  while (Date.now() - inicio < 10000) {
+    try {
+      const fd = openSync(caminhos.lock, "wx");
+      writeSync(fd, `${process.pid}\n`);
+      fsyncSync(fd);
+      return fd;
+    } catch (e) {
+      if (e.code !== "EEXIST") throw e;
+      let pid = NaN;
+      try {
+        pid = Number.parseInt(readFileSync(caminhos.lock, "utf8").trim(), 10);
+      } catch {
+        pid = NaN;
+      }
+      if (!Number.isInteger(pid) || !pidVivo(pid)) {
+        try { unlinkSync(caminhos.lock); } catch { /* corrida */ }
+        continue;
+      }
+      dormir(40);
+    }
+  }
+  return null;
+}
+
+function soltarLock(fd) {
+  if (fd !== null && fd !== undefined) {
+    try { closeSync(fd); } catch { /* já fechado */ }
+  }
+  try { unlinkSync(caminhos.lock); } catch { /* já sumiu */ }
+}
+
+function gravarFsync(caminho, texto) {
+  const tmp = `${caminho}.tmp`;
+  const fd = openSync(tmp, "w");
+  writeSync(fd, texto);
+  fsyncSync(fd);
+  closeSync(fd);
+  renameSync(tmp, caminho);
+}
+
+function appendFsync(caminho, texto) {
+  appendFileSync(caminho, texto);
+  const fd = openSync(caminho, "r+");
+  fsyncSync(fd);
+  closeSync(fd);
+}
+
+function completarJournal() {
+  if (!existsSync(caminhos.journal)) return;
+  let jornal;
+  try {
+    jornal = JSON.parse(readFileSync(caminhos.journal, "utf8"));
+  } catch {
+    throw new Error("journal inválido");
+  }
+  if (!jornal?.estado?.meta || !jornal?.elo?.hash) throw new Error("journal inválido");
+  gravarFsync(caminhos.estado, `${JSON.stringify(jornal.estado, null, 2)}\n`);
+  const elos = lerLog();
+  if (!elos.some((e) => e.hash === jornal.elo.hash)) {
+    appendFsync(caminhos.log, `${JSON.stringify(jornal.elo)}\n`);
+  }
+  unlinkSync(caminhos.journal);
+}
+
 async function aplicar({ dryRun }) {
   const arquivoPatch = flag("--patch");
   if (!arquivoPatch) return falha([{ path: "$", code: "malformed", message: "faltou --patch <arquivo>" }]);
@@ -171,22 +293,40 @@ async function aplicar({ dryRun }) {
   if (!existsSync(caminhos.schema)) {
     return falha([{ path: "$", code: "schema-error", message: `sem ${caminhos.schema} — rode '${CLI_CANONICO} init' primeiro` }]);
   }
-  const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
-  const schema = lerJson(caminhos.schema);
-  const { issues, resultado } = validarPatch(estado, schema, envelope);
-  if (issues.length > 0) return falha(issues);
   if (dryRun) {
+    const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
+    const schema = lerJson(caminhos.schema);
+    const { issues, resultado } = validarPatch(estado, schema, envelope);
+    if (issues.length > 0) return falha(issues);
     console.log(JSON.stringify({ ok: true, dry_run: true, delecoes: contarDelecoes(envelope.delta) }));
     return 0;
   }
-  const elo = await encadear(estado?.meta?.ultimo_hash ?? GENESIS_HASH, envelope);
-  resultado.meta = { patch_seq: envelope.seq, ultimo_hash: elo.hash, atualizado_em: envelope.quando };
-  const temp = `${caminhos.estado}.tmp`;
-  writeFileSync(temp, `${JSON.stringify(resultado, null, 2)}\n`);
-  appendFileSync(caminhos.log, `${JSON.stringify(elo)}\n`);
-  renameSync(temp, caminhos.estado); // atômico: o log ganha o elo antes de o snapshot trocar
-  console.log(JSON.stringify({ ok: true, seq: envelope.seq, hash: elo.hash }));
-  return 0;
+  const fd = adquirirLock();
+  if (fd === null) {
+    return falha([{ path: "$", code: "locked", message: "dir de estado ocupado — outro apply em curso; tente de novo" }]);
+  }
+  try {
+    try {
+      completarJournal();
+    } catch (e) {
+      return falha([{ path: "$", code: "journal-error", message: e.message }]);
+    }
+    const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
+    const schema = lerJson(caminhos.schema);
+    const { issues, resultado, envelope: envCanon } = validarPatch(estado, schema, envelope);
+    if (issues.length > 0) return falha(issues);
+    const env = envCanon ?? envelope;
+    const elo = await encadear(estado?.meta?.ultimo_hash ?? GENESIS_HASH, env);
+    resultado.meta = { patch_seq: env.seq, ultimo_hash: elo.hash, atualizado_em: env.quando };
+    gravarFsync(caminhos.journal, `${JSON.stringify({ estado: resultado, elo })}\n`);
+    gravarFsync(caminhos.estado, `${JSON.stringify(resultado, null, 2)}\n`);
+    appendFsync(caminhos.log, `${JSON.stringify(elo)}\n`);
+    unlinkSync(caminhos.journal);
+    console.log(JSON.stringify({ ok: true, seq: envelope.seq, hash: elo.hash }));
+    return 0;
+  } finally {
+    soltarLock(fd);
+  }
 }
 
 function falha(issues) {
@@ -207,25 +347,40 @@ function shaRefBase() {
 }
 
 async function verificar() {
-  const elos = lerLog();
-  const cadeia = await verificarCadeia(elos);
-  const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
-  let replayOk = false;
-  if (estado && cadeia.ok) {
-    let sigma = {};
-    for (const elo of elos) sigma = aplicarMergePatch(sigma, elo.envelope.delta);
-    const { meta: _ignorada, ...semMeta } = estado;
-    replayOk =
-      JSON.stringify(sigma) === JSON.stringify(semMeta) &&
-      estado.meta.patch_seq === elos.length &&
-      estado.meta.ultimo_hash === (elos.at(-1)?.hash ?? GENESIS_HASH);
+  const fd = adquirirLock();
+  if (fd === null) {
+    console.log(JSON.stringify({ ok: false, cadeia: { ok: false }, replay_ok: false, stale: null, locked: true }));
+    return 1;
   }
-  const shaRemoto = shaRefBase();
-  const shaEstado = estado?.derivado_de_github?.main_sha ?? null;
-  const stale = shaRemoto !== null && shaEstado !== null ? shaRemoto !== shaEstado : null;
-  const ok = cadeia.ok && replayOk;
-  console.log(JSON.stringify({ ok, cadeia, replay_ok: replayOk, stale, ref_base: REF_BASE, main_sha_estado: shaEstado, main_sha_ref: shaRemoto }));
-  return ok ? 0 : 1;
+  try {
+    try {
+      completarJournal();
+    } catch (e) {
+      console.log(JSON.stringify({ ok: false, cadeia: { ok: false }, replay_ok: false, stale: null, journal_error: e.message }));
+      return 1;
+    }
+    const elos = lerLog();
+    const cadeia = await verificarCadeia(elos);
+    const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
+    let replayOk = false;
+    if (estado && cadeia.ok) {
+      let sigma = {};
+      for (const elo of elos) sigma = aplicarMergePatch(sigma, elo.envelope.delta);
+      const { meta: _ignorada, ...semMeta } = estado;
+      replayOk =
+        JSON.stringify(sigma) === JSON.stringify(semMeta) &&
+        estado.meta.patch_seq === elos.length &&
+        estado.meta.ultimo_hash === (elos.at(-1)?.hash ?? GENESIS_HASH);
+    }
+    const shaRemoto = shaRefBase();
+    const shaEstado = estado?.derivado_de_github?.main_sha ?? null;
+    const stale = shaRemoto !== null && shaEstado !== null ? shaRemoto !== shaEstado : null;
+    const ok = cadeia.ok && replayOk;
+    console.log(JSON.stringify({ ok, cadeia, replay_ok: replayOk, stale, ref_base: REF_BASE, main_sha_estado: shaEstado, main_sha_ref: shaRemoto }));
+    return ok ? 0 : 1;
+  } finally {
+    soltarLock(fd);
+  }
 }
 
 function contexto() {
@@ -260,10 +415,20 @@ function checarFlush() {
 }
 
 function iniciar() {
+  const dominio = flag("--domain") ?? "dev";
+  const arquivos = {
+    dev: "STATE.schema.template.json",
+    ops: "STATE.schema.ops.json",
+    pesquisa: "STATE.schema.pesquisa.json",
+  };
+  if (!arquivos[dominio]) {
+    console.error("uso: cli.mjs init [--domain dev|ops|pesquisa] [--dir <pasta>]");
+    return 2;
+  }
   mkdirSync(dir, { recursive: true });
   if (!existsSync(caminhos.schema)) {
-    copyFileSync(join(AQUI, "..", "templates", "STATE.schema.template.json"), caminhos.schema);
-    console.log(`criado: ${caminhos.schema} (edite o schema para o seu domínio antes do genesis, se quiser)`);
+    copyFileSync(join(AQUI, "..", "templates", arquivos[dominio]), caminhos.schema);
+    console.log(`criado: ${caminhos.schema} (domínio ${dominio}; edite o schema antes do genesis, se quiser)`);
   } else {
     console.log(`já existe: ${caminhos.schema}`);
   }
@@ -290,7 +455,7 @@ const rotas = {
 };
 
 if (!rotas[comando]) {
-  console.error(`uso: cli.mjs <${Object.keys(rotas).join("|")}> [--dir <pasta>] [--patch <arquivo>] [--dry-run]`);
+  console.error(`uso: cli.mjs <${Object.keys(rotas).join("|")}> [--dir <pasta>] [--patch <arquivo>|-] [--domain dev|ops|pesquisa] [--dry-run]`);
   process.exit(2);
 }
 process.exit(await rotas[comando]());
