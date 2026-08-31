@@ -10,6 +10,7 @@
  *   validate     → valida um patch SEM aplicar (--patch <arquivo>)
  *   apply        → valida e aplica atômico (--patch <arquivo> [--dry-run])
  *   verify       → cadeia de hash íntegra + replay == STATE.json + staleness vs ref base
+ *   archive      → recorta o prefixo do log (--keep N, default 50) se verify verde
  *   selftest     → roda os fixtures dourados (contrato do protocolo)
  *
  * Configuração (todas opcionais):
@@ -57,6 +58,8 @@ const caminhos = {
   log: join(dir, "patches.jsonl"),
   journal: join(dir, "apply.journal"),
   lock: join(dir, "apply.lock"),
+  archiveMeta: join(dir, "archive.meta.json"),
+  archiveDir: join(dir, "archive"),
 };
 
 const lerJson = (caminho) => JSON.parse(readFileSync(caminho, "utf8"));
@@ -346,6 +349,35 @@ function shaRefBase() {
   }
 }
 
+function lerArquivo() {
+  if (!existsSync(caminhos.archiveMeta)) {
+    return { ate_seq: 0, hash_continuidade: GENESIS_HASH, snapshot: {} };
+  }
+  return lerJson(caminhos.archiveMeta);
+}
+
+async function avaliarIntegridade() {
+  const arq = lerArquivo();
+  const elos = lerLog();
+  const cadeia = await verificarCadeia(elos, arq.hash_continuidade);
+  const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
+  let replayOk = false;
+  if (estado && cadeia.ok) {
+    let sigma = structuredClone(arq.snapshot);
+    for (const elo of elos) sigma = aplicarMergePatch(sigma, elo.envelope.delta);
+    const { meta: _ignorada, ...semMeta } = estado;
+    replayOk =
+      JSON.stringify(sigma) === JSON.stringify(semMeta) &&
+      estado.meta.patch_seq === arq.ate_seq + elos.length &&
+      estado.meta.ultimo_hash === (elos.at(-1)?.hash ?? arq.hash_continuidade);
+  }
+  const shaRemoto = shaRefBase();
+  const shaEstado = estado?.derivado_de_github?.main_sha ?? null;
+  const stale = shaRemoto !== null && shaEstado !== null ? shaRemoto !== shaEstado : null;
+  const ok = cadeia.ok && replayOk;
+  return { ok, cadeia, replay_ok: replayOk, stale, ref_base: REF_BASE, main_sha_estado: shaEstado, main_sha_ref: shaRemoto };
+}
+
 async function verificar() {
   const fd = adquirirLock();
   if (fd === null) {
@@ -359,25 +391,55 @@ async function verificar() {
       console.log(JSON.stringify({ ok: false, cadeia: { ok: false }, replay_ok: false, stale: null, journal_error: e.message }));
       return 1;
     }
-    const elos = lerLog();
-    const cadeia = await verificarCadeia(elos);
-    const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
-    let replayOk = false;
-    if (estado && cadeia.ok) {
-      let sigma = {};
-      for (const elo of elos) sigma = aplicarMergePatch(sigma, elo.envelope.delta);
-      const { meta: _ignorada, ...semMeta } = estado;
-      replayOk =
-        JSON.stringify(sigma) === JSON.stringify(semMeta) &&
-        estado.meta.patch_seq === elos.length &&
-        estado.meta.ultimo_hash === (elos.at(-1)?.hash ?? GENESIS_HASH);
+    const r = await avaliarIntegridade();
+    console.log(JSON.stringify(r));
+    return r.ok ? 0 : 1;
+  } finally {
+    soltarLock(fd);
+  }
+}
+
+async function arquivar() {
+  const keepBruto = flag("--keep") ?? "50";
+  const keep = Number(keepBruto);
+  if (!Number.isInteger(keep) || keep < 1) {
+    return falha([{ path: "$", code: "malformed", message: "--keep deve ser inteiro ≥ 1 (default 50)" }]);
+  }
+  const fd = adquirirLock();
+  if (fd === null) {
+    return falha([{ path: "$", code: "locked", message: "dir de estado ocupado — outro apply em curso; tente de novo" }]);
+  }
+  try {
+    try {
+      completarJournal();
+    } catch (e) {
+      return falha([{ path: "$", code: "journal-error", message: e.message }]);
     }
-    const shaRemoto = shaRefBase();
-    const shaEstado = estado?.derivado_de_github?.main_sha ?? null;
-    const stale = shaRemoto !== null && shaEstado !== null ? shaRemoto !== shaEstado : null;
-    const ok = cadeia.ok && replayOk;
-    console.log(JSON.stringify({ ok, cadeia, replay_ok: replayOk, stale, ref_base: REF_BASE, main_sha_estado: shaEstado, main_sha_ref: shaRemoto }));
-    return ok ? 0 : 1;
+    const integridade = await avaliarIntegridade();
+    if (!integridade.ok) {
+      return falha([{ path: "$", code: "verify-failed", message: "archive exige verify verde — nada foi tocado" }]);
+    }
+    const elos = lerLog();
+    if (elos.length <= keep) {
+      return falha([{ path: "$", code: "nada-a-arquivar", message: `log tem ${elos.length} elo(s); --keep ${keep} não recorta nada` }]);
+    }
+    const prefixo = elos.slice(0, elos.length - keep);
+    const resto = elos.slice(elos.length - keep);
+    const arq = lerArquivo();
+    let snapshot = structuredClone(arq.snapshot);
+    for (const elo of prefixo) snapshot = aplicarMergePatch(snapshot, elo.envelope.delta);
+    const meta = {
+      ate_seq: arq.ate_seq + prefixo.length,
+      hash_continuidade: prefixo.at(-1).hash,
+      snapshot,
+    };
+    mkdirSync(caminhos.archiveDir, { recursive: true });
+    const artefato = join(caminhos.archiveDir, `prefix-${meta.ate_seq}.jsonl`);
+    gravarFsync(artefato, `${prefixo.map((e) => JSON.stringify(e)).join("\n")}\n`);
+    gravarFsync(caminhos.archiveMeta, `${JSON.stringify(meta, null, 2)}\n`);
+    gravarFsync(caminhos.log, `${resto.map((e) => JSON.stringify(e)).join("\n")}\n`);
+    console.log(JSON.stringify({ ok: true, arquivados: prefixo.length, keep, ate_seq: meta.ate_seq, artefato }));
+    return 0;
   } finally {
     soltarLock(fd);
   }
@@ -451,11 +513,12 @@ const rotas = {
   validate: () => aplicar({ dryRun: true }),
   apply: () => aplicar({ dryRun: args.includes("--dry-run") }),
   verify: () => verificar(),
+  archive: () => arquivar(),
   selftest: () => rodarSelftest({ validarPatch, dirFixtures: join(AQUI, "..", "fixtures") }),
 };
 
 if (!rotas[comando]) {
-  console.error(`uso: cli.mjs <${Object.keys(rotas).join("|")}> [--dir <pasta>] [--patch <arquivo>|-] [--domain dev|ops|pesquisa] [--dry-run]`);
+  console.error(`uso: cli.mjs <${Object.keys(rotas).join("|")}> [--dir <pasta>] [--patch <arquivo>|-] [--domain dev|ops|pesquisa] [--keep N] [--dry-run]`);
   process.exit(2);
 }
 process.exit(await rotas[comando]());
