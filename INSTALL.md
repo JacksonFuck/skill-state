@@ -35,7 +35,7 @@ O Claude Code descobre a skill pelo `SKILL.md` automaticamente na próxima sess�
 
 ```bash
 node <destino>/skill-state/bin/cli.mjs selftest
-# esperado: 20 casos ✓ e "selftest: 20/20 verdes"
+# esperado: 27 casos ✓ e "selftest: 27/27 verdes"
 ```
 
 Se falhar aqui, nada mais vale — confira a versão do Node (`node --version` ≥ 20).
@@ -53,12 +53,12 @@ objeto `hooks` do settings correspondente, preservando hooks já existentes:
     "SessionStart": [
       { "matcher": "startup|resume|compact",
         "hooks": [ { "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context 2>/dev/null || true" } ] }
+          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context" } ] }
     ],
     "PreCompact": [
       { "matcher": "auto|manual",
         "hooks": [ { "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check 2>/dev/null || true" } ] }
+          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check" } ] }
     ]
   }
 }
@@ -67,8 +67,8 @@ objeto `hooks` do settings correspondente, preservando hooks já existentes:
 **Global** (`~/.claude/settings.json`) — troque o caminho do script nos dois comandos por:
 
 ```
-node "$HOME/.claude/skills/skill-state/bin/cli.mjs" context 2>/dev/null || true
-node "$HOME/.claude/skills/skill-state/bin/cli.mjs" flush-check 2>/dev/null || true
+node "$HOME/.claude/skills/skill-state/bin/cli.mjs" context
+node "$HOME/.claude/skills/skill-state/bin/cli.mjs" flush-check
 ```
 
 O hook global roda em TODO projeto, mas é inofensivo onde não há estado: sem

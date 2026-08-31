@@ -57,21 +57,20 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 1. **Ao retomar:** leia o Σ injetado pelo hook (ou `cli.mjs context`). Aja pelo
    `PRÓXIMO PASSO`.
 2. **Trabalhe.** Raciocínio, tentativas e leituras são efêmeros — não precisam sobreviver.
-3. **Mudou algo que a próxima sessão precisa saber?** Escreva o envelope num arquivo
-   temporário e aplique:
+3. **Mudou algo que a próxima sessão precisa saber?** Aplique o envelope via stdin
+   (não use `/tmp` compartilhado entre sessões):
 
    ```bash
-   node .claude/skills/skill-state/bin/cli.mjs apply --patch /tmp/patch.json
-   ```
-
-   Envelope (spec completa em `references/patch-format.md`):
-
-   ```json
+   node .claude/skills/skill-state/bin/cli.mjs apply --patch - <<'EOF'
    { "seq": <meta.patch_seq + 1>, "base_seq": <meta.patch_seq atual>,
      "autor": "claude/<branch>", "quando": "<ISO-8601 UTC>",
      "motivo": "1 frase — por que este patch existe",
      "delta": { "intencao": { "proximo_passo": "..." } } }
+   EOF
    ```
+
+   Spec completa em `references/patch-format.md`. Substituição de lista que remove
+   mais de 3 itens exige `confirma-lista` no `motivo` (`large-replace`).
 
 4. **Rejeitado?** Leia `issues[]` (path + code + message), corrija e re-proponha — **máx 2
    retries**; na 3ª falha, pare e registre o problema para um humano. Nunca force, nunca
@@ -89,11 +88,9 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
   chave; chave fora do schema **rejeita** — typo não vira chave-fantasma.
 - `base_seq` deve ser o `meta.patch_seq` atual — dois agentes em paralelo: o segundo relê Σ e
   re-propõe (concorrência otimista).
-- Patch **suspeito** merece verificação adversarial ANTES de aplicar: deleção de >3 chaves,
-  reescrita integral de uma lista de fases, ou `proximo_passo` que contradiz bloqueio aberto.
-  Se o projeto tiver uma skill de verificação adversarial (judge), use-a sobre o delta; senão,
-  re-derive da fonte externa e, na dúvida, pergunte ao humano. Schema pega forma; não pega
-  mentira de intenção.
+- Substituição de lista que remove **mais de 3 itens** é recusada (`large-replace`) salvo
+  `confirma-lista` no `motivo`. O runtime pega a omissão; `proximo_passo` que contradiz
+  bloqueio aberto ainda pede juízo (schema pega forma, não mentira de intenção).
 - O Σ não é lugar de prosa: campo novo recorrente → evolua o `STATE.schema.json` numa mudança
   revisada, não contrabandeie texto livre.
 
@@ -101,7 +98,7 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 
 ```bash
 node .claude/skills/skill-state/bin/cli.mjs verify     # cadeia + replay + staleness
-node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 20/20
+node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 27/27
 ```
 
 Teste de aceitação de qualquer patch: uma sessão nova, lendo SÓ o contexto injetado, responde
