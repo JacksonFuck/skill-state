@@ -1,12 +1,32 @@
-# skill-state v1.0.0 — estado de execução explícito para agentes
+# skill-state v1.1.0 — estado de execução explícito para agentes
 
-> Kit portátil do protocolo **SKILL.state** (Badhe, Tiwari & Chung, arXiv:2608.26263,
-> ago/2026), endurecido em uso real e generalizado para qualquer repositório.
-> **Zero dependências npm. Requer Node ≥ 20** (usa WebCrypto global). Git é
-> opcional (só para detecção de staleness).
->
-> Este README é escrito para **agentes** (Claude Code ou similar) e para os humanos que os
-> supervisionam. Leia inteiro uma vez; depois, o dia-a-dia é a `SKILL.md`.
+Guarda “onde paramos” em três arquivos no projeto, conferidos por um programa — não pela
+conversa, que esquece e inventa. Serve para Claude Code, Codex, Grok, OpenCode e Phi.
+
+**Zero `npm`. Node ≥ 20.** O dia-a-dia do agente é a `SKILL.md`. Você só instala.
+
+## Instalar (copie e cole)
+
+```bash
+# 1. baixar (uma vez no computador)
+git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state
+
+# 2. testar — a última linha deve ser "selftest: 39/39 verdes"
+node ~/.claude/skills/skill-state/bin/cli.mjs selftest
+
+# 3. ligar nos seus agentes (Claude, Codex, Grok, OpenCode, Phi)
+node ~/.claude/skills/skill-state/bin/cli.mjs install --global
+
+# 4. em CADA pasta de projeto que for usar
+cd pasta-do-seu-projeto
+node ~/.claude/skills/skill-state/bin/cli.mjs install --project
+```
+
+O passo 4 imprime um JSON. Peça ao agente para preenchê-lo com o estado real do projeto e
+aplicar. Depois, numa sessão nova, pergunte **“qual o próximo passo?”**.
+
+Guia curto, para quem nunca viu isto: **[INSTALL.md](INSTALL.md)**.  
+Codex: depois do passo 3, `/hooks` e confie as linhas novas.
 
 ---
 
@@ -137,24 +157,15 @@ avançou, rejeita com `stale-base` e o agente relê e re-propõe. No mesmo worki
 ainda serializa com lockfile (PID) + journal: dois processos não intercalam o jsonl; crash no
 meio é completado no próximo `apply`/`verify`.
 
-## 4. Instalação (resumo — passo a passo e modo global em `INSTALL.md`)
+## 4. Instalação
+
+O bloco no topo deste README é o caminho curto. O guia para seguir no terminal, inclusive
+se algo falhar, está em `INSTALL.md` (`install --global` no computador, `install --project`
+em cada pasta de trabalho).
 
 Dois modos, mesma pasta: **no projeto** (`<repo>/.claude/skills/skill-state/`, versionada com
 o código) ou **global** (`~/.claude/skills/skill-state/`, vale para todos os seus projetos).
 O estado (`.skill-state/`) é sempre por projeto.
-
-```bash
-git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state
-node ~/.claude/skills/skill-state/bin/cli.mjs selftest          # 39/39
-node ~/.claude/skills/skill-state/bin/cli.mjs install --global  # Claude, Codex, Grok, OpenCode, Phi
-cd <repo>
-node ~/.claude/skills/skill-state/bin/cli.mjs install --project # init + template de genesis
-# preencha o genesis (fonte de verdade) e:
-node ~/.claude/skills/skill-state/bin/cli.mjs apply --patch -
-node ~/.claude/skills/skill-state/bin/cli.mjs verify
-```
-
-Passo a passo manual, snippet de hooks e adapters de host: `INSTALL.md`.
 
 Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default `.skill-state`),
 `SKILL_STATE_BASE_REF` (ref de staleness; default `origin/main`), `CLAUDE_PROJECT_DIR`
@@ -251,7 +262,8 @@ Protocolo do paper *SKILL.state: Scalable Long-Horizon Agent Skills* (arXiv:2608
 Os endurecimentos desta implementação — schema fechado, `base_seq` otimista, trilha
 hash-encadeada, validação sobre o resultado do merge, hooks de re-injeção — nasceram de
 adoção em produção num monorepo real, onde o primeiro genesis flagrou a documentação de
-estado do próprio projeto mentindo havia seis semanas. v1.0.0.
+estado do próprio projeto mentindo havia seis semanas. v1.1.0 (instalador `--global` /
+`--project`).
 
 Obrigado a [@tcconnally](https://github.com/tcconnally) pela [issue #1](https://github.com/JacksonFuck/skill-state/issues/1):
 `apply` aceitava `seq` não-contíguo e só o `verify` acusava depois. O código `invalid-seq`,

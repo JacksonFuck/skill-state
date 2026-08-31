@@ -1,124 +1,118 @@
-# skill-state — instalação
+# Como instalar o skill-state
 
-Requisitos: **Node ≥ 20** (WebCrypto global). Sem `npm install` — zero dependências.
-Git é opcional (habilita só a detecção de staleness contra a ref base).
+Três comandos no computador, um comando em cada projeto. Não precisa de `npm`.
 
-Há dois modos, e o instalador cobre os dois. Nos dois, o pacote é a MESMA pasta —
-só muda onde ela mora e onde os hooks são declarados. O estado (`.skill-state/`) é
-**sempre por projeto**.
-
-| | **No projeto** (recomendado p/ times) | **Global** (todos os seus projetos) |
-|---|---|---|
-| Skill | `<repo>/.claude/skills/skill-state/` | `~/.claude/skills/skill-state/` (e os outros hosts) |
-| Hooks | `<repo>/.claude/settings.json` | settings/hooks de cada host |
-| Versionada com o código? | sim (commit) | não |
-| Estado (`.skill-state/`) | sempre por projeto, nos dois modos | idem |
+**Você precisa:** Node 20 ou mais novo. Confira com:
 
 ```bash
-# 1. obter o kit (uma vez)
+node --version
+```
+
+Se aparecer `v20…` ou maior, siga. Se não tiver Node, instale em https://nodejs.org e volte aqui.
+
+---
+
+## No seu computador (uma vez)
+
+Abra o terminal e cole, um de cada vez:
+
+**1. Baixar**
+
+```bash
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state
-# ou trabalhe a partir de um checkout qualquer — o --global faz o symlink
+```
 
-# 2. selftest
-node ~/.claude/skills/skill-state/bin/cli.mjs selftest    # 39/39 verdes
+**2. Testar**
 
-# 3. ligar skill + hooks em todo host detectado (Claude, Codex, Grok, OpenCode, Phi)
-#    idempotente; não apaga hooks já existentes (jcode, dream, etc.)
+```bash
+node ~/.claude/skills/skill-state/bin/cli.mjs selftest
+```
+
+A última linha deve ser: `selftest: 39/39 verdes`. Se falhar, o Node está antigo ou o download quebrou — não continue.
+
+**3. Ligar nos agentes**
+
+```bash
 node ~/.claude/skills/skill-state/bin/cli.mjs install --global
+```
 
-# 4. por projeto: schema + template de genesis (não inventa o Σ)
-cd <repo>
+Isso liga o skill-state no Claude Code, Codex, Grok, OpenCode e Phi **se você já os tiver** no computador. Não apaga configuração antiga. Pode rodar de novo: o que já estiver ligado aparece como `já`.
+
+Só no **Codex:** abra o Codex, digite `/hooks` e **aceite/confie** as duas linhas novas do skill-state. Sem isso o Codex não usa o estado.
+
+Pronto para o computador. Os projetos ainda não têm estado — isso é o passo seguinte.
+
+---
+
+## Em cada projeto que você for usar
+
+O estado mora **dentro da pasta do projeto**, não no skill. Sem isso, o agente não tem “próximo passo” daquela pasta.
+
+```bash
+cd pasta-do-seu-projeto
 node ~/.claude/skills/skill-state/bin/cli.mjs install --project
-# opcional: --domain ops|pesquisa
-
-# 5. preencha o genesis impresso (fatos da fonte, não da memória) e aplique:
-node ~/.claude/skills/skill-state/bin/cli.mjs apply --patch - <<'EOF'
-{ ...genesis... }
-EOF
-node ~/.claude/skills/skill-state/bin/cli.mjs verify
 ```
 
-`--global` detecta o que existe em `$HOME` (`.claude`, `.codex`, `.grok`, `.opencode` /
-`.config/opencode`, `.phi/agent`). Host ausente = pulado. Rode de novo à vontade:
-já ligado permanece, nada duplica.
+O comando cria a pasta `.skill-state/` e **imprime um modelo JSON** (o genesis: o primeiro registro).
 
-O hook global roda em TODO projeto, mas é inofensivo onde não há estado: sem
-`.skill-state/STATE.json`, `context` e `flush-check` saem em silêncio.
+Peça ao agente, nessa mesma pasta:
 
-**Codex:** depois do `--global`, abra `/hooks` e **confie** as entradas `skill-state`.
-Hooks novos não rodam até isso. **Grok:** a skill precisa do symlink em `~/.grok/skills`
-(o config padrão ignora `~/.claude/skills`); o SessionStart pode ignorar stdout — se o
-`PRÓXIMO PASSO` não aparecer sozinho, peça `context`.
+> Preencha o genesis do skill-state com o estado real deste projeto (issues, git, o que falta) e aplique com `apply --patch -`. Depois rode `verify`.
 
-Estado fora do default `.skill-state/`? `install --project --dir <pasta>`, ou exporte
-`SKILL_STATE_DIR`. Ref base diferente de `origin/main`? Exporte `SKILL_STATE_BASE_REF`.
+Quando `verify` disser `"ok": true`, abra **uma sessão nova** do agente nessa pasta e pergunte:
 
-## Passo a passo manual (se não quiser o instalador)
+> qual o próximo passo?
 
-Via git:
+Se a resposta vier do que vocês gravaram, está instalado.
+
+Para versionar o estado com o código (recomendado):
 
 ```bash
-# no projeto:
-git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill-state
-rm -rf <repo>/.claude/skills/skill-state/.git   # opcional: destacar do repo de origem
-
-# global:
-git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state
+git add .skill-state
+git commit -m "chore: estado inicial skill-state"
 ```
 
-Ou via ZIP (release): descompacte e mova a pasta `skill-state/` para o destino acima.
+---
 
-Cole as chaves `SessionStart` e `PreCompact` de `templates/hooks.snippet.json` **dentro**
-do objeto `hooks` do settings correspondente, preservando hooks já existentes.
+## Uso no dia a dia
 
-**No projeto** (`<repo>/.claude/settings.json`):
+- Trabalho de **várias sessões** ou passagem entre agentes: use o skill-state.
+- Pergunta rápida de uma sessão: **não** crie estado.
+- Quando um passo terminar, uma decisão for tomada ou aparecer um bloqueio, o agente deve **atualizar o estado** (não só escrever um HANDOFF.md).
+- Frases que disparam a skill: “qual o próximo passo?”, “atualize o skill-state”, “handoff — grave o estado primeiro”.
 
-```json
-{
-  "hooks": {
-    "SessionStart": [
-      { "matcher": "startup|resume|compact",
-        "hooks": [ { "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context" } ] }
-    ],
-    "PreCompact": [
-      { "matcher": "auto|manual",
-        "hooks": [ { "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check" } ] }
-    ]
-  }
-}
-```
+O mesmo `.skill-state/` vale para Claude, Codex, Grok, OpenCode e Phi. O handoff é o arquivo, não a conversa.
 
-**Global** (`~/.claude/settings.json`) — troque o caminho do script nos dois comandos por:
+**Grok:** se na primeira mensagem o próximo passo não aparecer sozinho, diga “rode o skill-state context”.
 
-```
-node "$HOME/.claude/skills/skill-state/bin/cli.mjs" context
-node "$HOME/.claude/skills/skill-state/bin/cli.mjs" flush-check
-```
+---
 
-Os adapters de OpenCode e Phi (não têm `hooks.json` Claude-style) estão em
-`templates/hosts/` e o `--global` os copia.
+## Se algo der errado
 
-## Smoke test
+| Sintoma | O que fazer |
+|---|---|
+| `selftest` falha | `node --version` ≥ 20; baixe de novo o clone |
+| Agente não sabe o próximo passo | Você pulou o `--project` ou o genesis nesta pasta? |
+| Codex ignora o estado | `/hooks` → confiar as linhas skill-state |
+| Grok não injeta sozinho | Peça `context` na primeira mensagem |
+| Medo de ter estragado config | O instalador não apaga hooks antigos. Cópias em `~/.skill-state-host-install-backup/` |
+
+Comando único se o automático falhar, **dentro da pasta do projeto**:
 
 ```bash
-echo '{}' | node ~/.claude/skills/skill-state/bin/cli.mjs context
-# com Σ: JSON {"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"..."}}
-# sem Σ: silêncio, exit 0
+node ~/.claude/skills/skill-state/bin/cli.mjs context
 ```
 
-Abra uma sessão nova no projeto e pergunte **"qual o próximo passo?"** sem abrir arquivo
-algum. Se a resposta vier do Σ, a instalação está completa.
-
-## Recomendado: versionar o estado
-
-Commite `.skill-state/` (os 3 arquivos) no repositório do projeto — o estado viaja com o
-código, e o diff de `STATE.json`/`patches.jsonl` em cada PR mostra o que a sessão decidiu.
+---
 
 ## Desinstalar
 
-Remova o symlink `skill-state/` de cada `*/skills/`, as chaves de hook cujo comando contém
-`skill-state/bin/cli.mjs`, o plugin `~/.config/opencode/plugins/skill-state.js`, a extensão
-`~/.phi/agent/extensions/skill-state.ts`, e (se quiser) a pasta de estado de cada projeto.
-Nada mais é tocado. Backups do instalador ficam em `~/.skill-state-host-install-backup/`.
+Apague o atalho `skill-state` em cada pasta `skills` dos agentes, as linhas de hook que citam `skill-state/bin/cli.mjs`, o arquivo `~/.config/opencode/plugins/skill-state.js`, `~/.phi/agent/extensions/skill-state.ts`, e (se quiser) a pasta `.skill-state` de cada projeto.
+
+---
+
+## Para quem já sabe (opcional)
+
+Instalação na mão, snippet de hooks e adapters: o instalador `--global` já faz isso. Os JSON de hook estão em `templates/hooks.snippet.json`. OpenCode e Phi usam `templates/hosts/`.
+
+Vários fluxos no mesmo repo: `install --project --dir .skill-state/nome`. Ref git diferente de `origin/main`: `SKILL_STATE_BASE_REF`.
