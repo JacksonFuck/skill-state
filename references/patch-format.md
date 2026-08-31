@@ -22,10 +22,12 @@ Um patch é UM objeto JSON num arquivo próprio (nunca inline no shell — aspas
 |---|---|
 | `seq` | `meta.patch_seq` atual + 1 — inteiro; se pular ou regredir, rejeita com `invalid-seq` **antes** de gravar |
 | `base_seq` | `meta.patch_seq` atual — se o Σ avançou nesse meio-tempo, rejeita com `stale-base`: releia e re-proponha |
-| `autor` | `claude/<branch>` ou `<usuario>` — quem propôs, para a trilha |
-| `quando` | ISO-8601 UTC do momento da proposta |
-| `motivo` | 1 frase; é o que um auditor lê no `patches.jsonl` — escreva para ele |
+| `autor` | string não-vazia (`claude/<branch>` ou `<usuario>`); vazio → `malformed` |
+| `quando` | ISO-8601 UTC (`YYYY-MM-DDTHH:MM:SSZ`, fração opcional); outro formato → `malformed` |
+| `motivo` | string não-vazia (1 frase para o auditor); só espaços → `malformed` |
 | `delta` | JSON Merge Patch restrito (§2) |
+
+Chaves fora desta tabela no envelope → `unknown-key` (mesmo código do schema). Rejeição **antes** de gravar.
 
 ## 2. Operador ⊕ (RFC 7386 restrito)
 
@@ -41,13 +43,17 @@ medida em modelos menores):
 
 | Código | Gatilho | Defende contra |
 |---|---|---|
-| `unknown-key` | chave fora do schema (validado no **resultado** Σ⊕ΔΣ, não só no delta) | typo virar chave-fantasma (68% dos erros observados) |
-| `type-mismatch` | tipo/enum/const incoerente; chave obrigatória sumindo | corrupção estrutural (20%) |
-| `malformed` | JSON inválido ou campo do envelope ausente | formatação (12%) |
+| `unknown-key` | chave fora do schema (resultado Σ⊕ΔΣ) ou chave extra no envelope | typo virar chave-fantasma |
+| `type-mismatch` | tipo/enum/const incoerente; chave obrigatória sumindo | corrupção estrutural (20% no paper) |
+| `malformed` | JSON inválido; campo do envelope ausente; `quando` fora de ISO-8601 UTC; `autor`/`motivo` vazio | formatação (12% no paper) + envelope ilegível |
 | `forbidden-key` | delta tocando `spec`, `schema_version` ou `meta` | reescrever o P imutável / a zona do runtime |
 | `stale-base` | `base_seq ≠ meta.patch_seq` | dois agentes se sobrescreverem |
 | `invalid-seq` | `seq` não é inteiro ou não é exatamente `patch_seq + 1` | snapshot com `patch_seq` desalinhado do comprimento do log (`verify` vermelho) |
 | `duplicate-id` | `id` repetido em `pendencias`/`bloqueios` | item duplicado por releitura |
+
+O 68% do paper (§5.7) é omissão/overwrite de chaves existentes, não typo. A defesa é o
+merge-patch: chave omitida no delta **não** apaga (só `null` apaga). `unknown-key` é outra
+classe.
 
 Rejeição NUNCA muda nada em disco (validate-then-write atômico) e devolve
 `{"ok":false,"issues":[{"path","code","message"}]}` — o retry é seu, o rollback é do runtime.

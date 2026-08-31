@@ -8,7 +8,7 @@
  * Cobertura, mapeada na taxonomia de erros do paper SKILL.state §5.7:
  *   1. patch válido aplica e bate com o resultado dourado (⊕: merge recursivo, null-deletion,
  *      array como substituição atômica);
- *   2. chave desconhecida  → unknown-key   (68% dos erros observados no paper);
+ *   2. chave desconhecida  → unknown-key   (typo; o 68% do paper é omissão no merge);
  *   3. tipo incoerente     → type-mismatch (20%);
  *   4. JSON malformado     → malformed     (12%);
  *   5. base_seq velho      → stale-base    (concorrência otimista);
@@ -17,7 +17,8 @@
  *   8. cadeia dourada íntegra verifica; cadeia adulterada acusa o elo exato;
  *   9. replay da cadeia dourada reconstrói o estado dourado (Σ é derivável do log);
  *  10. apply rejeitado não grava STATE.json nem patches.jsonl;
- *  11. apply com seq = patch_seq+1 deixa verify verde.
+ *  11. apply com seq = patch_seq+1 deixa verify verde;
+ *  12. envelope: quando ISO-8601, sem chaves extra, autor/motivo não-vazios.
  */
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
@@ -43,9 +44,10 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
     JSON.stringify(valido.issues),
   );
 
-  const esperaCodigo = async (nome, arquivo, codigo) => {
+  const esperaCodigo = async (nome, arquivo, codigo, pathEsperado) => {
     const r = await validarPatch(estado, schema, ler(arquivo));
-    caso(nome, r.resultado === null && r.issues.some((i) => i.code === codigo), JSON.stringify(r.issues));
+    const bate = r.issues.some((i) => i.code === codigo && (!pathEsperado || i.path === pathEsperado));
+    caso(nome, r.resultado === null && bate, JSON.stringify(r.issues));
   };
   await esperaCodigo("chave desconhecida rejeita (unknown-key)", "patch-chave-desconhecida.json", "unknown-key");
   await esperaCodigo("tipo incoerente rejeita (type-mismatch)", "patch-tipo-errado.json", "type-mismatch");
@@ -53,6 +55,10 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
   await esperaCodigo("delta tocando meta rejeita (forbidden-key)", "patch-meta-proibido.json", "forbidden-key");
   await esperaCodigo("seq acima do próximo rejeita (invalid-seq)", "patch-seq-alto.json", "invalid-seq");
   await esperaCodigo("seq abaixo do próximo rejeita (invalid-seq)", "patch-seq-baixo.json", "invalid-seq");
+  await esperaCodigo("quando fora de ISO-8601 rejeita (malformed)", "patch-quando-invalido.json", "malformed", "$.quando");
+  await esperaCodigo("chave extra no envelope rejeita (unknown-key)", "patch-envelope-extra.json", "unknown-key", "$.foo");
+  await esperaCodigo("autor vazio rejeita (malformed)", "patch-autor-vazio.json", "malformed", "$.autor");
+  await esperaCodigo("motivo só espaços rejeita (malformed)", "patch-motivo-vazio.json", "malformed", "$.motivo");
 
   let malformado = false;
   try {
@@ -109,6 +115,22 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
         && depoisRejeicao.log === antes.log,
       rejeitado.stdout,
     );
+    const recusaSemGravar = (arquivo, codigo) => {
+      const r = rodar(["apply", "--patch", join(dirFixtures, arquivo)]);
+      const depois = lerPar();
+      let issues = [];
+      try { issues = JSON.parse(r.stdout).issues ?? []; } catch { /* stdout inesperado */ }
+      return {
+        ok: r.status === 1 && issues.some((i) => i.code === codigo) && depois.estado === antes.estado && depois.log === antes.log,
+        stdout: r.stdout,
+      };
+    };
+    const extra = recusaSemGravar("patch-envelope-extra.json", "unknown-key");
+    caso("apply envelope extra rejeita e não grava", extra.ok, extra.stdout);
+    const quando = recusaSemGravar("patch-quando-invalido.json", "malformed");
+    caso("apply quando inválido rejeita e não grava", quando.ok, quando.stdout);
+    const autor = recusaSemGravar("patch-autor-vazio.json", "malformed");
+    caso("apply autor vazio rejeita e não grava", autor.ok, autor.stdout);
     const aceito = rodar(["apply", "--patch", join(dirFixtures, "patch-valido.json")]);
     const verificado = rodar(["verify"]);
     let applyOk = false;

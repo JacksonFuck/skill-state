@@ -16,8 +16,8 @@ Agentes que trabalham em tarefas de longo horizonte guardam "onde paramos" de do
 ruins:
 
 1. **Na conversa** — que compacta (perde), cresce O(T²) em custo, e envenena decisões: fatos
-   obsoletos no histórico "vencem" observações novas (no paper, agentes com histórico levam
-   5–14 turnos alucinando até aceitar que o mundo mudou).
+   obsoletos no histórico "vencem" observações novas (no paper, Tabela 3: agentes com
+   histórico levam 5–8 turnos alucinando até aceitar que o mundo mudou).
 2. **Em prosa livre** (HANDOFF.md, MEMORY.md, TODO.md) — que ninguém valida. É o padrão de
    falha clássico: o arquivo de estado que "mente" — um TODO desatualizado que gera uma issue
    falsa e uma sessão inteira de investigação, um "PR aguardando revisão" semanas depois do
@@ -97,11 +97,12 @@ O erro clássico de arquivos de estado é tratá-los como fatos. Aqui o schema s
 
 Objeto = merge recursivo; `null` = deleta a chave; escalar = substitui; **array =
 substituição atômica** (mande a lista inteira — sem append/índice, sem duplicação silenciosa).
-Sete códigos de rejeição, mapeados na taxonomia de erros que o paper mediu em modelos menores
-(68% sobrescrita acidental / 20% tipo / 12% JSON malformado) mais os do protocolo:
-`unknown-key`, `type-mismatch`, `malformed`, `forbidden-key`, `stale-base`, `invalid-seq`,
-`duplicate-id`. A validação roda sobre o
-**resultado** Σ⊕ΔΣ, não só sobre o delta — deletar uma chave obrigatória também rejeita.
+Sete códigos de rejeição. No paper (§5.7, modelos menores) os erros foram 68% omissão/overwrite
+de chaves, 20% tipo, 12% JSON malformado. Este kit defende o 68% no **merge** (chave omitida
+não apaga — só `null` apaga) e o 20%/12% nos códigos `type-mismatch` e `malformed`.
+`unknown-key` é outra falha (typo virar chave-fantasma), não o 68%. Os demais códigos são do
+protocolo: `forbidden-key`, `stale-base`, `invalid-seq`, `duplicate-id`. A validação roda sobre
+o **resultado** Σ⊕ΔΣ, não só sobre o delta — deletar uma chave obrigatória também rejeita.
 Spec completa: `references/patch-format.md`.
 
 ### 3.4 A trilha hash-encadeada (o que o paper não viu)
@@ -143,7 +144,7 @@ git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state        # global
 
 # 2. selftest (prova que o runtime funciona nesta máquina)
-node <destino>/skill-state/bin/cli.mjs selftest                    # → 13/13 verdes
+node <destino>/skill-state/bin/cli.mjs selftest                    # → 20/20 verdes
 
 # 3. hooks: cole templates/hooks.snippet.json no objeto "hooks" do settings.json
 #    (do projeto ou o global ~/.claude/settings.json — ver INSTALL.md)
@@ -169,27 +170,29 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 | `verify` | cadeia íntegra + `replay==STATE.json` + staleness vs ref base | `{ok,cadeia,replay_ok,stale,...}` |
 | `context` | JSON de hook SessionStart com Σ resumido | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 13 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 20 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
 ## 6. Vantagens
 
-- **Prompt O(1), custo O(T)** — no paper, 16× menos tokens a 100 passos, 0.94 de acurácia
-  contra 0.74–0.88 dos baselines a 200 passos (benchmark dos próprios autores — trate os
-  números como direção, não como promessa).
-- **Recuperação imediata de drift externo** — quando o mundo muda por fora do loop, quem
-  decide pelo estado atual não fica preso a fatos velhos do histórico (0 turnos de recuperação
-  vs 5–14). É o resultado mais transferível do paper.
-- **Estrutura > compressão** — com o MESMO orçamento de tokens, janela deslizante marca 0.18
-  e compressão estatística 0.22; estado estruturado, 0.94. Resumir não substitui estruturar.
+O que **este kit** (sidecar no host conversacional) garante:
+
+- **Handoff executável** — sessão nova, lendo só o contexto injetado, responde "qual o
+  próximo passo?". O hook SessionStart re-injeta Σ depois de compactar.
 - **Estado que não mente calado** — carimbo `verificado_em` + `verify` contra a ref base +
-  replay da cadeia: as três mentiras clássicas de arquivos de estado (cache velho, edição à
-  mão, log reescrito) tornam-se detectáveis mecanicamente.
+  replay da cadeia: cache velho, edição à mão e log reescrito tornam-se detectáveis.
+- **Recuperação de drift externo** — no paper (Tabela 3) histórico alucina 5–8 turnos;
+  estado estruturado atualiza na hora. Aqui: `stale` vs a ref git e o primeiro patch da
+  sessão é a re-derivação.
 - **Auditoria de graça** — a trilha hash-encadeada registra quem mudou o quê, quando e por
   quê (`motivo`), verificável offline.
-- **Handoff executável** — o teste de aceitação ("sessão nova responde 'qual o próximo
-  passo?' só com o contexto injetado") deixa de ser disciplina e vira comportamento do hook.
+
+O que o **paper** mediu no *runtime deles* (Gemini, warehouse — **não** esta instalação):
+prompt O(1), 16× menos tokens a 100 passos, 0.94 vs 0.74–0.88 a 200 passos; janela
+deslizante 0.18 e compressão 0.22 vs estado 0.94. Este sidecar convive com o histórico do
+host; o ganho que sobrevive é de qualidade (anti-envenenamento, drift), não custo O(1).
+Ver limitação 5.
 
 ## 7. Limitações (honestas — leia antes de adotar)
 
@@ -230,7 +233,7 @@ skill-state/
   bin/schema.mjs              # validador de subset de JSON Schema (zero deps)
   bin/chain.mjs               # cadeia SHA-256 (WebCrypto)
   bin/selftest.mjs            # roda os fixtures
-  fixtures/                   # 11 arquivos — o CONTRATO executável do protocolo
+  fixtures/                   # 17 arquivos — o CONTRATO executável do protocolo
   templates/                  # schema inicial, genesis, snippet de hooks
 ```
 

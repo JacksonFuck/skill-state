@@ -35,7 +35,7 @@ O Claude Code descobre a skill pelo `SKILL.md` automaticamente na próxima sess�
 
 ```bash
 node <destino>/skill-state/bin/cli.mjs selftest
-# esperado: 13 casos ✓ e "selftest: 13/13 verdes"
+# esperado: 20 casos ✓ e "selftest: 20/20 verdes"
 ```
 
 Se falhar aqui, nada mais vale — confira a versão do Node (`node --version` ≥ 20).

@@ -1,0 +1,12 @@
+{
+  "seq": 2,
+  "base_seq": 1,
+  "autor": "claude/selftest",
+  "quando": "ontem",
+  "motivo": "quando fora de ISO-8601 UTC deve rejeitar antes de gravar",
+  "delta": {
+    "intencao": {
+      "proximo_passo": "Probe."
+    }
+  }
+}

@@ -61,7 +61,7 @@ const lerLog = () =>
     ? readFileSync(caminhos.log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : [];
 
-/** Pipeline validate: parse → base_seq → seq contíguo → ⊕ dry-run → schema no RESULTADO → regras do protocolo. */
+/** Pipeline validate: parse → base_seq → seq contíguo → envelope fechado → ⊕ dry-run → schema no RESULTADO → regras do protocolo. */
 function validarPatch(estado, schema, envelope) {
   const issues = [];
   const seqAtual = estado?.meta?.patch_seq ?? 0;
@@ -87,6 +87,36 @@ function validarPatch(estado, schema, envelope) {
     });
     return { issues, resultado: null };
   }
+  const CHAVES_ENVELOPE = new Set(["seq", "base_seq", "autor", "quando", "motivo", "delta"]);
+  for (const chave of Object.keys(envelope)) {
+    if (!CHAVES_ENVELOPE.has(chave)) {
+      issues.push({
+        path: `$.${chave}`,
+        code: "unknown-key",
+        message: "chave desconhecida no envelope",
+      });
+    }
+  }
+  if (issues.length > 0) return { issues, resultado: null };
+  const ISO_UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,9})?Z$/;
+  if (typeof envelope.quando !== "string" || !ISO_UTC.test(envelope.quando) || !Number.isFinite(Date.parse(envelope.quando))) {
+    issues.push({
+      path: "$.quando",
+      code: "malformed",
+      message: "quando deve ser ISO-8601 UTC (ex.: 2026-08-30T00:10:00Z)",
+    });
+    return { issues, resultado: null };
+  }
+  for (const campo of ["autor", "motivo"]) {
+    if (typeof envelope[campo] !== "string" || envelope[campo].trim() === "") {
+      issues.push({
+        path: `$.${campo}`,
+        code: "malformed",
+        message: `${campo} deve ser string não-vazia`,
+      });
+    }
+  }
+  if (issues.length > 0) return { issues, resultado: null };
   issues.push(...validarRegrasDoProtocolo(null, envelope.delta).filter(
     // no bootstrap (seq 0→1) o delta PRECISA criar spec/schema_version; meta segue proibida
     (p) => seqAtual !== 0 || p.path === "$.meta",
