@@ -61,7 +61,7 @@ const lerLog = () =>
     ? readFileSync(caminhos.log, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l))
     : [];
 
-/** Pipeline validate: parse → base_seq → ⊕ dry-run → schema no RESULTADO → regras do protocolo. */
+/** Pipeline validate: parse → base_seq → seq contíguo → ⊕ dry-run → schema no RESULTADO → regras do protocolo. */
 function validarPatch(estado, schema, envelope) {
   const issues = [];
   const seqAtual = estado?.meta?.patch_seq ?? 0;
@@ -79,6 +79,14 @@ function validarPatch(estado, schema, envelope) {
     }
   }
   if (issues.length > 0) return { issues, resultado: null };
+  if (!Number.isInteger(envelope.seq) || envelope.seq !== seqAtual + 1) {
+    issues.push({
+      path: "$.seq",
+      code: "invalid-seq",
+      message: `seq=${envelope.seq} mas o próximo é ${seqAtual + 1} — seq deve ser exatamente patch_seq+1`,
+    });
+    return { issues, resultado: null };
+  }
   issues.push(...validarRegrasDoProtocolo(null, envelope.delta).filter(
     // no bootstrap (seq 0→1) o delta PRECISA criar spec/schema_version; meta segue proibida
     (p) => seqAtual !== 0 || p.path === "$.meta",

@@ -1,0 +1,12 @@
+{
+  "seq": 999,
+  "base_seq": 1,
+  "autor": "claude/selftest",
+  "quando": "2026-08-30T00:10:00Z",
+  "motivo": "seq pula o próximo inteiro — apply deve rejeitar com invalid-seq, não deixar verify vermelho",
+  "delta": {
+    "intencao": {
+      "proximo_passo": "Probe."
+    }
+  }
+}

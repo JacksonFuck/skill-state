@@ -20,7 +20,7 @@ Um patch é UM objeto JSON num arquivo próprio (nunca inline no shell — aspas
 
 | Campo | Regra |
 |---|---|
-| `seq` | `meta.patch_seq` atual + 1 |
+| `seq` | `meta.patch_seq` atual + 1 — inteiro; se pular ou regredir, rejeita com `invalid-seq` **antes** de gravar |
 | `base_seq` | `meta.patch_seq` atual — se o Σ avançou nesse meio-tempo, rejeita com `stale-base`: releia e re-proponha |
 | `autor` | `claude/<branch>` ou `<usuario>` — quem propôs, para a trilha |
 | `quando` | ISO-8601 UTC do momento da proposta |
@@ -46,6 +46,7 @@ medida em modelos menores):
 | `malformed` | JSON inválido ou campo do envelope ausente | formatação (12%) |
 | `forbidden-key` | delta tocando `spec`, `schema_version` ou `meta` | reescrever o P imutável / a zona do runtime |
 | `stale-base` | `base_seq ≠ meta.patch_seq` | dois agentes se sobrescreverem |
+| `invalid-seq` | `seq` não é inteiro ou não é exatamente `patch_seq + 1` | snapshot com `patch_seq` desalinhado do comprimento do log (`verify` vermelho) |
 | `duplicate-id` | `id` repetido em `pendencias`/`bloqueios` | item duplicado por releitura |
 
 Rejeição NUNCA muda nada em disco (validate-then-write atômico) e devolve
