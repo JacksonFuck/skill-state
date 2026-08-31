@@ -28,8 +28,8 @@ export async function encadear(prevHash, envelope) {
  * Verifica a cadeia inteira. Devolve `{ok:true}` ou `{ok:false, quebradaEm}` (índice
  * 0-based da primeira linha cujo hash não fecha — elo adulterado, removido ou reordenado).
  */
-export async function verificarCadeia(elos) {
-  let anterior = GENESIS_HASH;
+export async function verificarCadeia(elos, inicio = GENESIS_HASH) {
+  let anterior = inicio;
   for (let i = 0; i < elos.length; i += 1) {
     const elo = elos[i];
     if (elo.prev_hash !== anterior) return { ok: false, quebradaEm: i };

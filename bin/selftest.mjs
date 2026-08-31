@@ -20,7 +20,7 @@
  *  11. apply com seq = patch_seq+1 deixa verify verde;
  *  12. envelope: quando ISO-8601, sem chaves extra, autor/motivo não-vazios.
  */
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
@@ -350,6 +350,48 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
     (textoSkill.includes("qualquer host") || textoSkill.includes("qualquer agente"))
       && (textoReadme.includes("qualquer host") || textoReadme.includes("não só SessionStart") || textoReadme.includes("qualquer agente")),
   );
+  caso("README não diz archive não implementado", !textoReadme.includes("não implementado"));
+
+  const tmpArq = montar("skill-state-selftest-archive-");
+  try {
+    const estadoGenesis = readFileSync(join(tmpArq.dirEstado, "STATE.json"), "utf8");
+    const aplicado = rodarCli(tmpArq.env, ["apply", "--patch", join(dirFixtures, "patch-valido.json")]);
+    const arqFeliz = rodarCli(tmpArq.env, ["archive", "--keep", "1"]);
+    let arqOk = false;
+    try { arqOk = JSON.parse(arqFeliz.stdout).ok === true && JSON.parse(arqFeliz.stdout).arquivados === 1; } catch { /* stdout inesperado */ }
+    const logHot = readFileSync(join(tmpArq.dirEstado, "patches.jsonl"), "utf8").split("\n").filter(Boolean);
+    const artefatos = existsSync(join(tmpArq.dirEstado, "archive"))
+      ? readdirSync(join(tmpArq.dirEstado, "archive"))
+      : [];
+    const verArq = rodarCli(tmpArq.env, ["verify"]);
+    let verArqOk = false;
+    try { verArqOk = JSON.parse(verArq.stdout).ok === true && JSON.parse(verArq.stdout).replay_ok === true; } catch { /* stdout inesperado */ }
+    caso(
+      "archive com verify verde recorta o prefixo e verify segue verde",
+      aplicado.status === 0 && arqFeliz.status === 0 && arqOk && logHot.length === 1 && artefatos.length >= 1 && verArq.status === 0 && verArqOk,
+      `archive=${arqFeliz.stdout} verify=${verArq.stdout} hot=${logHot.length} artefatos=${artefatos}`,
+    );
+
+    writeFileSync(join(tmpArq.dirEstado, "STATE.json"), estadoGenesis);
+    const logHotAntesRecusa = readFileSync(join(tmpArq.dirEstado, "patches.jsonl"), "utf8");
+    const metaAntes = existsSync(join(tmpArq.dirEstado, "archive.meta.json"))
+      ? readFileSync(join(tmpArq.dirEstado, "archive.meta.json"), "utf8")
+      : "";
+    const recusa = rodarCli(tmpArq.env, ["archive", "--keep", "1"]);
+    let recusaCode = "";
+    try { recusaCode = (JSON.parse(recusa.stdout).issues ?? []).map((i) => i.code).join(","); } catch { /* stdout inesperado */ }
+    const logDepois = readFileSync(join(tmpArq.dirEstado, "patches.jsonl"), "utf8");
+    const metaDepois = existsSync(join(tmpArq.dirEstado, "archive.meta.json"))
+      ? readFileSync(join(tmpArq.dirEstado, "archive.meta.json"), "utf8")
+      : "";
+    caso(
+      "archive com verify vermelho recusa e não toca os arquivos",
+      recusa.status === 1 && recusaCode.includes("verify-failed") && logDepois === logHotAntesRecusa && metaDepois === metaAntes,
+      `recusa=${recusa.stdout}`,
+    );
+  } finally {
+    rmSync(tmpArq.raiz, { recursive: true, force: true });
+  }
 
   for (const r of resultados) {
     console.log(`${r.ok ? "✓" : "✗"} ${r.nome}${r.ok ? "" : ` — ${r.detalhe}`}`);

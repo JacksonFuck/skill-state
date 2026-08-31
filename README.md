@@ -149,7 +149,7 @@ git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state        # global
 
 # 2. selftest (prova que o runtime funciona nesta máquina)
-node <destino>/skill-state/bin/cli.mjs selftest                    # → 33/33 verdes
+node <destino>/skill-state/bin/cli.mjs selftest                    # → 36/36 verdes
 
 # 3. hooks: cole templates/hooks.snippet.json no objeto "hooks" do settings.json
 #    (do projeto ou o global ~/.claude/settings.json — ver INSTALL.md)
@@ -173,9 +173,10 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 | `apply --patch f.json\|- [--dry-run]` | valida e aplica (arquivo ou stdin) | `{ok:true,seq,hash}` ou `{ok:false,issues[]}` |
 | `validate --patch f.json` | idem `apply --dry-run` | idem |
 | `verify` | cadeia íntegra + `replay==STATE.json` + staleness vs ref base | `{ok,cadeia,replay_ok,stale,...}` |
+| `archive [--keep N]` | recorta prefixo do log se verify verde (default keep 50) | `{ok,arquivados,ate_seq,artefato}` |
 | `context` | Σ resumido para o resume de **qualquer host** (Claude Code: hook SessionStart) | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 33 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 36 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
@@ -221,9 +222,10 @@ Ver limitação 5.
 7. **Schema pega forma, não intenção.** Um `proximo_passo` otimista ou uma deleção "limpando"
    contexto legítimo passam pela validação. Antídoto: revisão adversarial de patches suspeitos
    (>3 deleções, reescrita de listas inteiras) — regra na SKILL.md.
-8. **O log cresce para sempre** se ninguém o arquivar. Política sugerida: a cada ~50 patches,
-   `verify` verde → arquivar o trecho antigo com o hash de continuidade (não implementado
-   nesta versão; mantenha o hábito manualmente).
+8. **O log quente não precisa crescer para sempre.** `archive --keep 50` (default 50) recorta
+   o prefixo quando `verify` está verde, grava o trecho em `archive/prefix-<seq>.jsonl` com
+   hash de continuidade, e o `verify` seguinte continua verde. Sem política mágica: o comando
+   existe; o hábito (rodar de vez em quando) é seu.
 
 ## 8. Estrutura do kit
 
@@ -233,7 +235,7 @@ skill-state/
   README.md                   # este arquivo
   INSTALL.md                  # instalação passo a passo
   references/patch-format.md  # spec formal do envelope e do ⊕
-  bin/cli.mjs                 # runtime (init|context|flush-check|validate|apply|verify|selftest)
+  bin/cli.mjs                 # runtime (init|context|flush-check|validate|apply|verify|archive|selftest)
   bin/merge.mjs               # operador ⊕ puro
   bin/schema.mjs              # validador de subset de JSON Schema (zero deps)
   bin/chain.mjs               # cadeia SHA-256 (WebCrypto)
