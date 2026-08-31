@@ -11,6 +11,7 @@
  *   apply        → valida e aplica atômico (--patch <arquivo> [--dry-run])
  *   verify       → cadeia de hash íntegra + replay == STATE.json + staleness vs ref base
  *   archive      → recorta o prefixo do log (--keep N, default 50) se verify verde
+ *   install      → liga skill+hooks nos hosts (--global) e/ou init no projeto (--project)
  *   selftest     → roda os fixtures dourados (contrato do protocolo)
  *
  * Configuração (todas opcionais):
@@ -514,11 +515,12 @@ const rotas = {
   apply: () => aplicar({ dryRun: args.includes("--dry-run") }),
   verify: () => verificar(),
   archive: () => arquivar(),
+  install: () => import("./install.mjs").then((m) => m.main(args.slice(1))),
   selftest: () => rodarSelftest({ validarPatch, dirFixtures: join(AQUI, "..", "fixtures") }),
 };
 
 if (!rotas[comando]) {
-  console.error(`uso: cli.mjs <${Object.keys(rotas).join("|")}> [--dir <pasta>] [--patch <arquivo>|-] [--domain dev|ops|pesquisa] [--keep N] [--dry-run]`);
+  console.error(`uso: cli.mjs <${Object.keys(rotas).join("|")}> [--dir <pasta>] [--patch <arquivo>|-] [--domain dev|ops|pesquisa] [--keep N] [--dry-run] [--global] [--project] [--home <dir>]`);
   process.exit(2);
 }
 process.exit(await rotas[comando]());

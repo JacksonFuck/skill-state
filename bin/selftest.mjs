@@ -20,7 +20,7 @@
  *  11. apply com seq = patch_seq+1 deixa verify verde;
  *  12. envelope: quando ISO-8601, sem chaves extra, autor/motivo não-vazios.
  */
-import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync, readdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync, readdirSync, lstatSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { execFileSync, spawn } from "node:child_process";
@@ -392,6 +392,83 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
   } finally {
     rmSync(tmpArq.raiz, { recursive: true, force: true });
   }
+
+  const homeInst = mkdtempSync(join(tmpdir(), "skill-state-selftest-install-home-"));
+  try {
+    const mkdirp = (p) => mkdirSync(p, { recursive: true });
+    mkdirp(join(homeInst, ".claude"));
+    writeFileSync(join(homeInst, ".claude", "settings.json"), `${JSON.stringify({
+      hooks: {
+        SessionStart: [{ matcher: "startup|resume", hooks: [{ type: "command", command: "jcode-existente", timeout: 5 }] }],
+        Stop: [{ hooks: [{ type: "command", command: "dream-existente" }] }],
+      },
+    }, null, 2)}\n`);
+    mkdirp(join(homeInst, ".codex"));
+    writeFileSync(join(homeInst, ".codex", "hooks.json"), `${JSON.stringify({
+      hooks: {
+        SessionStart: [{ matcher: "startup|resume", hooks: [{ type: "command", command: "jcode-codex", timeout: 5 }] }],
+      },
+    }, null, 2)}\n`);
+    mkdirp(join(homeInst, ".grok"));
+    mkdirp(join(homeInst, ".opencode", "skills"));
+    mkdirp(join(homeInst, ".config", "opencode"));
+    writeFileSync(join(homeInst, ".config", "opencode", "opencode.json"), `${JSON.stringify({
+      permission: { skill: { "*": "deny", tdd: "allow" } },
+    }, null, 2)}\n`);
+    mkdirp(join(homeInst, ".phi", "agent", "skills"));
+    mkdirp(join(homeInst, ".phi", "agent", "extensions"));
+
+    const r1 = rodarCli(process.env, ["install", "--global", "--home", homeInst]);
+    const r2 = rodarCli(process.env, ["install", "--global", "--home", homeInst]);
+    const claude = JSON.parse(readFileSync(join(homeInst, ".claude", "settings.json"), "utf8"));
+    const codex = JSON.parse(readFileSync(join(homeInst, ".codex", "hooks.json"), "utf8"));
+    const grokPath = join(homeInst, ".grok", "hooks", "skill-state.json");
+    const oc = JSON.parse(readFileSync(join(homeInst, ".config", "opencode", "opencode.json"), "utf8"));
+    const skillLink = join(homeInst, ".claude", "skills", "skill-state");
+    const nSs = (hooks) => JSON.stringify(hooks?.SessionStart ?? []).split("skill-state/bin/cli.mjs").length - 1;
+    const nPc = (hooks) => JSON.stringify(hooks?.PreCompact ?? []).split("skill-state/bin/cli.mjs").length - 1;
+    const jcodeClaude = JSON.stringify(claude.hooks.SessionStart).includes("jcode-existente");
+    const dream = JSON.stringify(claude.hooks.Stop).includes("dream-existente");
+    const jcodeCodex = JSON.stringify(codex.hooks.SessionStart).includes("jcode-codex");
+    caso(
+      "install --global preserva hooks existentes, liga os 5 hosts e é idempotente",
+      r1.status === 0 && r2.status === 0
+        && lstatSync(skillLink).isSymbolicLink()
+        && existsSync(join(skillLink, "SKILL.md"))
+        && jcodeClaude && dream && jcodeCodex
+        && nSs(claude.hooks) === 1 && nPc(claude.hooks) === 1
+        && nSs(codex.hooks) === 1 && nPc(codex.hooks) === 1
+        && existsSync(grokPath)
+        && oc.permission?.skill?.["skill-state"] === "allow" && oc.permission?.skill?.["*"] === "deny"
+        && existsSync(join(homeInst, ".config", "opencode", "plugins", "skill-state.js"))
+        && existsSync(join(homeInst, ".phi", "agent", "extensions", "skill-state.ts"))
+        && existsSync(join(homeInst, ".grok", "skills", "skill-state"))
+        && existsSync(join(homeInst, ".codex", "skills", "skill-state"))
+        && existsSync(join(homeInst, ".opencode", "skills", "skill-state"))
+        && existsSync(join(homeInst, ".phi", "agent", "skills", "skill-state")),
+      `r1=${r1.status} r2=${r2.status} ss=${nSs(claude.hooks)} pc=${nPc(claude.hooks)} out=${r1.stdout.slice(0, 400)}`,
+    );
+  } finally {
+    rmSync(homeInst, { recursive: true, force: true });
+  }
+
+  const projInst = mkdtempSync(join(tmpdir(), "skill-state-selftest-install-proj-"));
+  try {
+    const rP = rodarCli({ ...process.env, CLAUDE_PROJECT_DIR: projInst }, ["install", "--project"]);
+    const schemaP = join(projInst, ".skill-state", "STATE.schema.json");
+    caso(
+      "install --project cria o schema e imprime o genesis",
+      rP.status === 0 && existsSync(schemaP) && rP.stdout.includes('"seq": 1') && rP.stdout.includes("genesis"),
+      rP.stdout.slice(0, 400),
+    );
+  } finally {
+    rmSync(projInst, { recursive: true, force: true });
+  }
+
+  caso(
+    "INSTALL.md documenta install --global e --project",
+    textoInstall.includes("install --global") && textoInstall.includes("install --project"),
+  );
 
   for (const r of resultados) {
     console.log(`${r.ok ? "✓" : "✗"} ${r.nome}${r.ok ? "" : ` — ${r.detalhe}`}`);
