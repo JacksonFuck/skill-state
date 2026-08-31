@@ -6,7 +6,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context 2>/dev/null || true"
+          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context"
         }
       ]
     }
@@ -17,7 +17,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check 2>/dev/null || true"
+          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check"
         }
       ]
     }

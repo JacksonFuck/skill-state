@@ -97,12 +97,13 @@ O erro clássico de arquivos de estado é tratá-los como fatos. Aqui o schema s
 
 Objeto = merge recursivo; `null` = deleta a chave; escalar = substitui; **array =
 substituição atômica** (mande a lista inteira — sem append/índice, sem duplicação silenciosa).
-Sete códigos de rejeição. No paper (§5.7, modelos menores) os erros foram 68% omissão/overwrite
+Oito códigos de rejeição. No paper (§5.7, modelos menores) os erros foram 68% omissão/overwrite
 de chaves, 20% tipo, 12% JSON malformado. Este kit defende o 68% no **merge** (chave omitida
-não apaga — só `null` apaga) e o 20%/12% nos códigos `type-mismatch` e `malformed`.
-`unknown-key` é outra falha (typo virar chave-fantasma), não o 68%. Os demais códigos são do
-protocolo: `forbidden-key`, `stale-base`, `invalid-seq`, `duplicate-id`. A validação roda sobre
-o **resultado** Σ⊕ΔΣ, não só sobre o delta — deletar uma chave obrigatória também rejeita.
+não apaga — só `null` apaga) e, nas listas, com `large-replace` (>3 itens sumindo sem
+`confirma-lista`). O 20%/12% são `type-mismatch` e `malformed`. `unknown-key` é outra falha
+(typo virar chave-fantasma), não o 68%. Os demais códigos são do protocolo: `forbidden-key`,
+`stale-base`, `invalid-seq`, `duplicate-id`. A validação roda sobre o **resultado** Σ⊕ΔΣ, não
+só sobre o delta — deletar uma chave obrigatória também rejeita.
 Spec completa: `references/patch-format.md`.
 
 ### 3.4 A trilha hash-encadeada (o que o paper não viu)
@@ -144,7 +145,7 @@ git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state        # global
 
 # 2. selftest (prova que o runtime funciona nesta máquina)
-node <destino>/skill-state/bin/cli.mjs selftest                    # → 20/20 verdes
+node <destino>/skill-state/bin/cli.mjs selftest                    # → 27/27 verdes
 
 # 3. hooks: cole templates/hooks.snippet.json no objeto "hooks" do settings.json
 #    (do projeto ou o global ~/.claude/settings.json — ver INSTALL.md)
@@ -165,12 +166,12 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 | Comando | Faz | Saída |
 |---|---|---|
 | `init` | cria dir de estado + schema do template; imprime genesis a preencher | texto |
-| `apply --patch f.json [--dry-run]` | valida e aplica (ou só simula) | `{ok:true,seq,hash}` ou `{ok:false,issues[]}` |
+| `apply --patch f.json\|- [--dry-run]` | valida e aplica (arquivo ou stdin) | `{ok:true,seq,hash}` ou `{ok:false,issues[]}` |
 | `validate --patch f.json` | idem `apply --dry-run` | idem |
 | `verify` | cadeia íntegra + `replay==STATE.json` + staleness vs ref base | `{ok,cadeia,replay_ok,stale,...}` |
 | `context` | JSON de hook SessionStart com Σ resumido | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 20 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 27 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
@@ -233,7 +234,7 @@ skill-state/
   bin/schema.mjs              # validador de subset de JSON Schema (zero deps)
   bin/chain.mjs               # cadeia SHA-256 (WebCrypto)
   bin/selftest.mjs            # roda os fixtures
-  fixtures/                   # 17 arquivos — o CONTRATO executável do protocolo
+  fixtures/                   # 19 arquivos — o CONTRATO executável do protocolo
   templates/                  # schema inicial, genesis, snippet de hooks
 ```
 

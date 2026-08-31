@@ -131,6 +131,10 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
     caso("apply quando inválido rejeita e não grava", quando.ok, quando.stdout);
     const autor = recusaSemGravar("patch-autor-vazio.json", "malformed");
     caso("apply autor vazio rejeita e não grava", autor.ok, autor.stdout);
+    const ctx = rodar(["context"]);
+    let additional = "";
+    try { additional = JSON.parse(ctx.stdout).hookSpecificOutput?.additionalContext ?? ""; } catch { /* stdout inesperado */ }
+    caso("context com Σ injeta PRÓXIMO PASSO", ctx.status === 0 && additional.includes("PRÓXIMO PASSO:"), ctx.stdout);
     const aceito = rodar(["apply", "--patch", join(dirFixtures, "patch-valido.json")]);
     const verificado = rodar(["verify"]);
     let applyOk = false;
@@ -144,6 +148,91 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
     );
   } finally {
     rmSync(tmp, { recursive: true, force: true });
+  }
+
+  const vazio = mkdtempSync(join(tmpdir(), "skill-state-selftest-empty-"));
+  try {
+    const envVazio = { ...process.env, CLAUDE_PROJECT_DIR: vazio };
+    let ctxVazio;
+    try {
+      ctxVazio = { status: 0, stdout: execFileSync("node", [cli, "context"], { env: envVazio, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+    } catch (e) {
+      ctxVazio = { status: e.status ?? 1, stdout: e.stdout ?? "" };
+    }
+    caso("context sem Σ sai silencioso", ctxVazio.status === 0 && ctxVazio.stdout.trim() === "", ctxVazio.stdout);
+  } finally {
+    rmSync(vazio, { recursive: true, force: true });
+  }
+
+  const raizSkill = join(dirFixtures, "..");
+  const textoHooks = readFileSync(join(raizSkill, "templates", "hooks.snippet.json"), "utf8");
+  const textoInstall = readFileSync(join(raizSkill, "INSTALL.md"), "utf8");
+  caso(
+    "hooks oficiais não engolem erro",
+    !textoHooks.includes("2>/dev/null || true") && !textoInstall.includes("2>/dev/null || true"),
+  );
+  const textoSkill = readFileSync(join(raizSkill, "SKILL.md"), "utf8");
+  caso("SKILL.md não aponta /tmp/patch.json", !textoSkill.includes("/tmp/patch.json"));
+
+  const estadoCheio = structuredClone(estado);
+  estadoCheio.intencao.pendencias = [1, 2, 3, 4, 5].map((n) => ({
+    id: `p-${n}`,
+    texto: `item ${n}`,
+    dono: "agente",
+  }));
+  const confirmado = await validarPatch(estadoCheio, schema, ler("patch-large-replace-ok.json"));
+  caso(
+    "large-replace com confirma-lista aplica",
+    confirmado.issues.length === 0 && Array.isArray(confirmado.resultado?.intencao?.pendencias) && confirmado.resultado.intencao.pendencias.length === 0,
+    JSON.stringify(confirmado.issues),
+  );
+  // esperaCodigo usa `estado` (1 pendência) — large-replace precisa do estadoCheio
+  const wipe = await validarPatch(estadoCheio, schema, ler("patch-large-replace.json"));
+  caso(
+    "large-replace em lista longa rejeita",
+    wipe.resultado === null && wipe.issues.some((i) => i.code === "large-replace" && i.path === "$.intencao.pendencias"),
+    JSON.stringify(wipe.issues),
+  );
+
+  const tmpStdin = mkdtempSync(join(tmpdir(), "skill-state-selftest-stdin-"));
+  try {
+    const dirStdin = join(tmpStdin, ".skill-state");
+    mkdirSync(dirStdin);
+    copyFileSync(join(dirFixtures, "schema.json"), join(dirStdin, "STATE.schema.json"));
+    copyFileSync(join(dirFixtures, "estado-inicial.json"), join(dirStdin, "STATE.json"));
+    writeFileSync(join(dirStdin, "patches.jsonl"), `${JSON.stringify(cadeiaDourada[0])}\n`);
+    const envStdin = { ...process.env, CLAUDE_PROJECT_DIR: tmpStdin };
+    let stdinOut;
+    try {
+      stdinOut = {
+        status: 0,
+        stdout: execFileSync("node", [cli, "apply", "--patch", "-"], {
+          env: envStdin,
+          encoding: "utf8",
+          input: readFileSync(join(dirFixtures, "patch-valido.json")),
+          stdio: ["pipe", "pipe", "pipe"],
+        }),
+      };
+    } catch (e) {
+      stdinOut = { status: e.status ?? 1, stdout: e.stdout ?? "" };
+    }
+    let stdinApplyOk = false;
+    try { stdinApplyOk = JSON.parse(stdinOut.stdout).ok === true && JSON.parse(stdinOut.stdout).seq === 2; } catch { /* stdout inesperado */ }
+    let stdinVerify;
+    try {
+      stdinVerify = { status: 0, stdout: execFileSync("node", [cli, "verify"], { env: envStdin, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+    } catch (e) {
+      stdinVerify = { status: e.status ?? 1, stdout: e.stdout ?? "" };
+    }
+    let stdinVerifyOk = false;
+    try { const v = JSON.parse(stdinVerify.stdout); stdinVerifyOk = v.ok === true && v.replay_ok === true; } catch { /* stdout inesperado */ }
+    caso(
+      "apply --patch - (stdin) deixa verify verde",
+      stdinOut.status === 0 && stdinApplyOk && stdinVerify.status === 0 && stdinVerifyOk,
+      `apply=${stdinOut.stdout} verify=${stdinVerify.stdout}`,
+    );
+  } finally {
+    rmSync(tmpStdin, { recursive: true, force: true });
   }
 
   for (const r of resultados) {

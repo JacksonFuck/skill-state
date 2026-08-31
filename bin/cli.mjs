@@ -126,7 +126,35 @@ function validarPatch(estado, schema, envelope) {
   resultado.meta = estado?.meta ?? { patch_seq: 0, ultimo_hash: GENESIS_HASH, atualizado_em: envelope.quando };
   issues.push(...validarContraSchema(resultado, schema));
   issues.push(...validarRegrasDoProtocolo(resultado, {}));
+  if (issues.length === 0) issues.push(...validarLargeReplace(estado, resultado, envelope));
   return { issues, resultado: issues.length === 0 ? resultado : null };
+}
+
+const LISTAS_PROTEGIDAS = [
+  ["intencao", "pendencias"],
+  ["intencao", "bloqueios"],
+  ["intencao", "avisos_operacionais"],
+  ["derivado_de_github", "fases"],
+];
+
+/** Substituição atômica que apaga >3 itens exige `confirma-lista` no motivo. */
+function validarLargeReplace(estado, resultado, envelope) {
+  if (typeof envelope.motivo === "string" && envelope.motivo.includes("confirma-lista")) return [];
+  const issues = [];
+  const delta = envelope.delta;
+  for (const [zona, chave] of LISTAS_PROTEGIDAS) {
+    if (!Array.isArray(delta?.[zona]?.[chave])) continue;
+    const antes = Array.isArray(estado?.[zona]?.[chave]) ? estado[zona][chave].length : 0;
+    const depois = Array.isArray(resultado?.[zona]?.[chave]) ? resultado[zona][chave].length : 0;
+    if (antes - depois > 3) {
+      issues.push({
+        path: `$.${zona}.${chave}`,
+        code: "large-replace",
+        message: `lista perdeu ${antes - depois} itens (>3) — inclua confirma-lista no motivo para confirmar`,
+      });
+    }
+  }
+  return issues;
 }
 
 async function aplicar({ dryRun }) {
@@ -134,7 +162,9 @@ async function aplicar({ dryRun }) {
   if (!arquivoPatch) return falha([{ path: "$", code: "malformed", message: "faltou --patch <arquivo>" }]);
   let envelope;
   try {
-    envelope = lerJson(arquivoPatch);
+    envelope = arquivoPatch === "-"
+      ? JSON.parse(readFileSync(0, "utf8"))
+      : lerJson(arquivoPatch);
   } catch (e) {
     return falha([{ path: "$", code: "malformed", message: `JSON inválido: ${e.message}` }]);
   }
@@ -212,7 +242,7 @@ function contexto() {
     stale
       ? `⚠ derivado_de_github STALE (estado=${estado.derivado_de_github?.main_sha?.slice(0, 7)} ≠ ${REF_BASE}=${shaRemoto.slice(0, 7)}, verificado_em=${estado.derivado_de_github?.verificado_em}) — re-derive da fonte antes de confiar.`
       : `derivado_de_github verificado_em=${estado.derivado_de_github?.verificado_em}${shaRemoto === null ? " (staleness indeterminada — sem git)" : " (base ok)"}`,
-    `Protocolo: ${SKILL_CANONICA} — mudou algo relevante? proponha ΔΣ via 'node ${CLI_CANONICO} apply --patch <arquivo>'.`,
+    `Protocolo: ${SKILL_CANONICA} — mudou algo relevante? proponha ΔΣ via 'node ${CLI_CANONICO} apply --patch -'.`,
   ];
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: linhas.join("\n") } }));
   return 0;
