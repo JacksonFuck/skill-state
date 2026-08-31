@@ -23,7 +23,7 @@
 import { readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, copyFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import { aplicarMergePatch } from "./merge.mjs";
 import { verificarCadeia } from "./chain.mjs";
 
@@ -234,6 +234,122 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
   } finally {
     rmSync(tmpStdin, { recursive: true, force: true });
   }
+
+  const aliasado = await validarPatch(estado, schema, ler("patch-alias-en.json"));
+  caso(
+    "alias EN next_step vira proximo_passo",
+    aliasado.issues.length === 0
+      && aliasado.resultado?.intencao?.proximo_passo === "Fazer Y."
+      && !Object.hasOwn(aliasado.resultado?.intencao ?? {}, "next_step"),
+    JSON.stringify(aliasado.issues),
+  );
+
+  const montar = (prefixo) => {
+    const raiz = mkdtempSync(join(tmpdir(), prefixo));
+    const dirEstado = join(raiz, ".skill-state");
+    mkdirSync(dirEstado);
+    copyFileSync(join(dirFixtures, "schema.json"), join(dirEstado, "STATE.schema.json"));
+    copyFileSync(join(dirFixtures, "estado-inicial.json"), join(dirEstado, "STATE.json"));
+    writeFileSync(join(dirEstado, "patches.jsonl"), `${JSON.stringify(cadeiaDourada[0])}\n`);
+    return { raiz, dirEstado, env: { ...process.env, CLAUDE_PROJECT_DIR: raiz } };
+  };
+  const rodarCli = (env, args) => {
+    try {
+      return { status: 0, stdout: execFileSync("node", [cli, ...args], { env, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }) };
+    } catch (e) {
+      return { status: e.status ?? 1, stdout: e.stdout ?? "" };
+    }
+  };
+
+  const tmpLock = montar("skill-state-selftest-lock-");
+  try {
+    const spawnApply = () => new Promise((resolve) => {
+      const p = spawn("node", [cli, "apply", "--patch", join(dirFixtures, "patch-valido.json")], {
+        env: tmpLock.env,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
+      let stdout = "";
+      p.stdout.on("data", (c) => { stdout += c; });
+      p.on("close", (status) => resolve({ status: status ?? 1, stdout }));
+    });
+    const [a, b] = await Promise.all([spawnApply(), spawnApply()]);
+    const parsed = [a, b].map((r) => {
+      try { return JSON.parse(r.stdout); } catch { return {}; }
+    });
+    const oks = parsed.filter((p) => p.ok === true).length;
+    const stale = parsed.filter((p) => (p.issues ?? []).some((i) => i.code === "stale-base" || i.code === "locked")).length;
+    const logLinhas = readFileSync(join(tmpLock.dirEstado, "patches.jsonl"), "utf8").split("\n").filter(Boolean);
+    const ver = rodarCli(tmpLock.env, ["verify"]);
+    let verOk = false;
+    try { verOk = JSON.parse(ver.stdout).ok === true && JSON.parse(ver.stdout).replay_ok === true; } catch { /* stdout inesperado */ }
+    caso(
+      "dois apply paralelos: um ganha, log íntegro, verify verde",
+      oks === 1 && stale === 1 && logLinhas.length === 2 && ver.status === 0 && verOk,
+      `a=${a.stdout} b=${b.stdout} verify=${ver.stdout} linhas=${logLinhas.length}`,
+    );
+  } finally {
+    rmSync(tmpLock.raiz, { recursive: true, force: true });
+  }
+
+  const tmpJ = montar("skill-state-selftest-journal-");
+  try {
+    const aplicado = rodarCli(tmpJ.env, ["apply", "--patch", join(dirFixtures, "patch-valido.json")]);
+    const estadoNovo = readFileSync(join(tmpJ.dirEstado, "STATE.json"), "utf8");
+    const logNovo = readFileSync(join(tmpJ.dirEstado, "patches.jsonl"), "utf8").trim().split("\n");
+    const eloNovo = JSON.parse(logNovo.at(-1));
+    copyFileSync(join(dirFixtures, "estado-inicial.json"), join(tmpJ.dirEstado, "STATE.json"));
+    writeFileSync(join(tmpJ.dirEstado, "patches.jsonl"), `${JSON.stringify(cadeiaDourada[0])}\n`);
+    writeFileSync(join(tmpJ.dirEstado, "apply.journal"), `${JSON.stringify({ estado: JSON.parse(estadoNovo), elo: eloNovo })}\n`);
+    const verJ = rodarCli(tmpJ.env, ["verify"]);
+    let verJOk = false;
+    try { verJOk = JSON.parse(verJ.stdout).ok === true && JSON.parse(verJ.stdout).replay_ok === true; } catch { /* stdout inesperado */ }
+    const journalSumiu = !existsSync(join(tmpJ.dirEstado, "apply.journal"));
+    const estadoRec = JSON.parse(readFileSync(join(tmpJ.dirEstado, "STATE.json"), "utf8"));
+    caso(
+      "journal residual: verify recupera e some o journal",
+      aplicado.status === 0 && verJ.status === 0 && verJOk && journalSumiu && estadoRec.meta?.patch_seq === 2,
+      `apply=${aplicado.stdout} verify=${verJ.stdout} journal=${journalSumiu} seq=${estadoRec.meta?.patch_seq}`,
+    );
+  } finally {
+    rmSync(tmpJ.raiz, { recursive: true, force: true });
+  }
+
+  const schemaDe = (dominio) => {
+    const raiz = mkdtempSync(join(tmpdir(), `skill-state-init-${dominio}-`));
+    try {
+      const r = rodarCli({ ...process.env, CLAUDE_PROJECT_DIR: raiz }, ["init", "--domain", dominio]);
+      const schemaPath = join(raiz, ".skill-state", "STATE.schema.json");
+      const s = JSON.parse(readFileSync(schemaPath, "utf8"));
+      const zonas = ["schema_version", "spec", "derivado_de_github", "intencao", "meta"];
+      const okZonas = zonas.every((z) => (s.required ?? []).includes(z)) && s.additionalProperties === false;
+      return { r, s, okZonas, raiz };
+    } catch (e) {
+      return { r: { status: 1, stdout: String(e) }, s: {}, okZonas: false, raiz };
+    }
+  };
+  const ops = schemaDe("ops");
+  caso(
+    "init --domain ops cria schema distinto com 4 zonas fechadas",
+    ops.r.status === 0 && ops.okZonas && ops.s.properties?.intencao?.properties?.incidentes !== undefined
+      && ops.s.properties?.intencao?.properties?.pendencias === undefined,
+    JSON.stringify({ status: ops.r.status, keys: Object.keys(ops.s.properties?.intencao?.properties ?? {}) }),
+  );
+  rmSync(ops.raiz, { recursive: true, force: true });
+  const pesquisa = schemaDe("pesquisa");
+  caso(
+    "init --domain pesquisa cria schema distinto com 4 zonas fechadas",
+    pesquisa.r.status === 0 && pesquisa.okZonas && pesquisa.s.properties?.intencao?.properties?.hipoteses !== undefined
+      && pesquisa.s.properties?.intencao?.properties?.pendencias === undefined,
+    JSON.stringify({ status: pesquisa.r.status, keys: Object.keys(pesquisa.s.properties?.intencao?.properties ?? {}) }),
+  );
+  rmSync(pesquisa.raiz, { recursive: true, force: true });
+
+  const textoReadme = readFileSync(join(raizSkill, "README.md"), "utf8");
+  caso(
+    "docs descrevem context como comando de qualquer host",
+    (textoSkill.includes("qualquer host") || textoSkill.includes("qualquer agente"))
+      && (textoReadme.includes("qualquer host") || textoReadme.includes("não só SessionStart") || textoReadme.includes("qualquer agente")),
+  );
 
   for (const r of resultados) {
     console.log(`${r.ok ? "✓" : "✗"} ${r.nome}${r.ok ? "" : ` — ${r.detalhe}`}`);

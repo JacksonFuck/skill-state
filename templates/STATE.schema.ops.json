@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "skill-state Σ — domínio: ops (4 zonas, additionalProperties:false)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "spec", "derivado_de_github", "intencao", "meta"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plano", "regras"],
+      "properties": {
+        "plano": { "type": "string" },
+        "regras": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "derivado_de_github": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verificado_em", "main_sha", "testes", "servicos"],
+      "properties": {
+        "verificado_em": { "type": "string" },
+        "main_sha": { "type": "string" },
+        "testes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["total", "verdes", "comando"],
+          "properties": {
+            "total": { "type": "integer" },
+            "verdes": { "type": "integer" },
+            "comando": { "type": "string" }
+          }
+        },
+        "servicos": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["nome", "status"],
+            "properties": {
+              "nome": { "type": "string" },
+              "status": { "enum": ["ok", "degradado", "fora"] }
+            }
+          }
+        }
+      }
+    },
+    "intencao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proximo_passo", "incidentes", "bloqueios", "avisos_operacionais"],
+      "properties": {
+        "proximo_passo": { "type": "string" },
+        "incidentes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "texto"],
+            "properties": {
+              "id": { "type": "string" },
+              "texto": { "type": "string" }
+            }
+          }
+        },
+        "bloqueios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "texto"],
+            "properties": {
+              "id": { "type": "string" },
+              "texto": { "type": "string" }
+            }
+          }
+        },
+        "avisos_operacionais": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patch_seq", "ultimo_hash", "atualizado_em"],
+      "properties": {
+        "patch_seq": { "type": "integer" },
+        "ultimo_hash": { "type": "string" },
+        "atualizado_em": { "type": "string" }
+      }
+    }
+  }
+}

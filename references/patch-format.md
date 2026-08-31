@@ -29,6 +29,18 @@ Um patch é UM objeto JSON num arquivo próprio (nunca inline no shell — aspas
 
 Chaves fora desta tabela no envelope → `unknown-key` (mesmo código do schema). Rejeição **antes** de gravar.
 
+Aliases EN no **delta** (expand; Σ gravado continua canônico em pt-BR):
+
+| Alias | Canônica |
+|---|---|
+| `next_step` | `proximo_passo` |
+| `pending_items` | `pendencias` |
+| `blockers` | `bloqueios` |
+| `operational_warnings` | `avisos_operacionais` |
+| `verified_at` | `verificado_em` |
+| `incidents` | `incidentes` |
+| `hypotheses` | `hipoteses` |
+
 ## 2. Operador ⊕ (RFC 7386 restrito)
 
 | Situação no delta | Efeito |
@@ -51,6 +63,8 @@ medida em modelos menores):
 | `invalid-seq` | `seq` não é inteiro ou não é exatamente `patch_seq + 1` | snapshot com `patch_seq` desalinhado do comprimento do log (`verify` vermelho) |
 | `duplicate-id` | `id` repetido em `pendencias`/`bloqueios` | item duplicado por releitura |
 | `large-replace` | array em `pendencias`/`bloqueios`/`avisos_operacionais`/`fases` perde mais de 3 itens e o `motivo` não contém `confirma-lista` | omissão em substituição atômica (68% real do paper) |
+| `locked` | outro `apply` segura o dir | escrita concorrente no mesmo working tree |
+| `journal-error` | `apply.journal` ilegível | crash no meio do apply deixou lixo |
 
 O 68% do paper (§5.7) é omissão/overwrite de chaves existentes, não typo. A defesa é o
 merge-patch: chave omitida no delta **não** apaga (só `null` apaga). `unknown-key` é outra

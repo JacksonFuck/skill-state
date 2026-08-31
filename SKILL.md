@@ -23,7 +23,7 @@ O raciocínio é efêmero; o estado é permanente; a trilha de patches é audit�
 
 | Situação | Ação |
 |---|---|
-| Sessão nova num projeto com `STATE.json` | O hook SessionStart já injetou Σ — confie no `PRÓXIMO PASSO`; se STALE, re-derive da fonte primeiro |
+| Sessão nova num projeto com `STATE.json` | Qualquer host: rode `cli.mjs context` no resume. No Claude Code o hook SessionStart já fez isso. Confie no `PRÓXIMO PASSO`; se STALE, re-derive da fonte primeiro |
 | Passo concluído / decisão tomada / bloqueio encontrado | Proponha ΔΣ **agora**, não no fim da sessão |
 | Vai escrever handoff, resumo de sessão, "onde paramos" | Patch primeiro; a prosa cita o `seq` do patch |
 | Contexto prestes a compactar | Flush do ΔΣ pendente antes (o hook PreCompact lembra, mas é best-effort) |
@@ -54,8 +54,8 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 
 ## Fluxo obrigatório
 
-1. **Ao retomar:** leia o Σ injetado pelo hook (ou `cli.mjs context`). Aja pelo
-   `PRÓXIMO PASSO`.
+1. **Ao retomar:** qualquer host chama `cli.mjs context` (Claude Code: o hook SessionStart
+   já injetou). Aja pelo `PRÓXIMO PASSO`.
 2. **Trabalhe.** Raciocínio, tentativas e leituras são efêmeros — não precisam sobreviver.
 3. **Mudou algo que a próxima sessão precisa saber?** Aplique o envelope via stdin
    (não use `/tmp` compartilhado entre sessões):
@@ -98,7 +98,7 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 
 ```bash
 node .claude/skills/skill-state/bin/cli.mjs verify     # cadeia + replay + staleness
-node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 27/27
+node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 33/33
 ```
 
 Teste de aceitação de qualquer patch: uma sessão nova, lendo SÓ o contexto injetado, responde

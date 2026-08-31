@@ -1,0 +1,83 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "skill-state Σ — domínio: pesquisa (4 zonas, additionalProperties:false)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "spec", "derivado_de_github", "intencao", "meta"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["plano", "regras"],
+      "properties": {
+        "plano": { "type": "string" },
+        "regras": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "derivado_de_github": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verificado_em", "fontes"],
+      "properties": {
+        "verificado_em": { "type": "string" },
+        "fontes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "citacao"],
+            "properties": {
+              "id": { "type": "string" },
+              "citacao": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "intencao": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proximo_passo", "hipoteses", "bloqueios", "avisos_operacionais"],
+      "properties": {
+        "proximo_passo": { "type": "string" },
+        "hipoteses": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "texto"],
+            "properties": {
+              "id": { "type": "string" },
+              "texto": { "type": "string" },
+              "estado": { "enum": ["aberta", "sustentada", "refutada"] }
+            }
+          }
+        },
+        "bloqueios": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "texto"],
+            "properties": {
+              "id": { "type": "string" },
+              "texto": { "type": "string" }
+            }
+          }
+        },
+        "avisos_operacionais": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["patch_seq", "ultimo_hash", "atualizado_em"],
+      "properties": {
+        "patch_seq": { "type": "integer" },
+        "ultimo_hash": { "type": "string" },
+        "atualizado_em": { "type": "string" }
+      }
+    }
+  }
+}

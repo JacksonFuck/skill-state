@@ -119,6 +119,9 @@ Cada patch vira uma linha de `patches.jsonl` com
 
 ### 3.5 Os hooks (enforcement no Claude Code)
 
+`cli.mjs context` é o comando de resume de **qualquer host**. No Claude Code o hook
+SessionStart chama isso por você; noutros agentes, invoque no início da sessão.
+
 - **SessionStart** (`startup|resume|compact`) → `cli.mjs context` injeta Σ resumido como
   `additionalContext`: próximo passo, bloqueios, pendências (top 5), avisos, e o alerta STALE.
   É a garantia forte: **depois de uma compactação, Σ volta inteiro** — a sessão não depende
@@ -130,8 +133,9 @@ Cada patch vira uma linha de `patches.jsonl` com
 ### 3.6 Concorrência
 
 Otimista, via `base_seq`: todo patch declara sobre qual `patch_seq` foi proposto; se o Σ
-avançou, rejeita com `stale-base` e o agente relê e re-propõe. Suficiente para worktrees
-paralelos no mesmo repo; NÃO é para escrita concorrente de alta frequência (ver limitações).
+avançou, rejeita com `stale-base` e o agente relê e re-propõe. No mesmo working tree, `apply`
+ainda serializa com lockfile (PID) + journal: dois processos não intercalam o jsonl; crash no
+meio é completado no próximo `apply`/`verify`.
 
 ## 4. Instalação (resumo — passo a passo e modo global em `INSTALL.md`)
 
@@ -145,13 +149,13 @@ git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state        # global
 
 # 2. selftest (prova que o runtime funciona nesta máquina)
-node <destino>/skill-state/bin/cli.mjs selftest                    # → 27/27 verdes
+node <destino>/skill-state/bin/cli.mjs selftest                    # → 33/33 verdes
 
 # 3. hooks: cole templates/hooks.snippet.json no objeto "hooks" do settings.json
 #    (do projeto ou o global ~/.claude/settings.json — ver INSTALL.md)
 
 # 4. estado inicial, por projeto
-cd <repo> && node <destino>/skill-state/bin/cli.mjs init           # cria .skill-state/ + schema
+cd <repo> && node <destino>/skill-state/bin/cli.mjs init [--domain dev|ops|pesquisa]
 #    preencha o genesis impresso, salve em /tmp/genesis.json e:
 node <destino>/skill-state/bin/cli.mjs apply --patch /tmp/genesis.json
 node <destino>/skill-state/bin/cli.mjs verify                      # ok, replay_ok
@@ -165,13 +169,13 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 
 | Comando | Faz | Saída |
 |---|---|---|
-| `init` | cria dir de estado + schema do template; imprime genesis a preencher | texto |
+| `init [--domain dev\|ops\|pesquisa]` | cria dir de estado + schema do domínio; imprime genesis | texto |
 | `apply --patch f.json\|- [--dry-run]` | valida e aplica (arquivo ou stdin) | `{ok:true,seq,hash}` ou `{ok:false,issues[]}` |
 | `validate --patch f.json` | idem `apply --dry-run` | idem |
 | `verify` | cadeia íntegra + `replay==STATE.json` + staleness vs ref base | `{ok,cadeia,replay_ok,stale,...}` |
-| `context` | JSON de hook SessionStart com Σ resumido | `{hookSpecificOutput:{...}}` |
+| `context` | Σ resumido para o resume de **qualquer host** (Claude Code: hook SessionStart) | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 27 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 33 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
@@ -234,8 +238,8 @@ skill-state/
   bin/schema.mjs              # validador de subset de JSON Schema (zero deps)
   bin/chain.mjs               # cadeia SHA-256 (WebCrypto)
   bin/selftest.mjs            # roda os fixtures
-  fixtures/                   # 19 arquivos — o CONTRATO executável do protocolo
-  templates/                  # schema inicial, genesis, snippet de hooks
+  fixtures/                   # 20 arquivos — o CONTRATO executável do protocolo
+  templates/                  # schema dev/ops/pesquisa, genesis, snippet de hooks
 ```
 
 Os fixtures são deliberadamente parte do kit: qualquer reimplementação (ex.: uma versão
