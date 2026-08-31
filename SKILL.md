@@ -27,7 +27,7 @@ O raciocínio é efêmero; o estado é permanente; a trilha de patches é audit�
 | Passo concluído / decisão tomada / bloqueio encontrado | Proponha ΔΣ **agora**, não no fim da sessão |
 | Vai escrever handoff, resumo de sessão, "onde paramos" | Patch primeiro; a prosa cita o `seq` do patch |
 | Contexto prestes a compactar | Flush do ΔΣ pendente antes (o hook PreCompact lembra, mas é best-effort) |
-| Trabalho multi-sessão começando num projeto SEM STATE.json | Proponha `init` + genesis (ver README §Instalação) |
+| Trabalho multi-sessão começando num projeto SEM STATE.json | Proponha `install --project` (ou `init`) + genesis (ver INSTALL.md) |
 | Tarefa de sessão única, pergunta pontual, exploração | **Não se aplica** — não crie estado para o que morre com a conversa |
 
 ## Anatomia (por projeto ou por área de trabalho)
@@ -98,7 +98,7 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 
 ```bash
 node .claude/skills/skill-state/bin/cli.mjs verify     # cadeia + replay + staleness
-node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 36/36
+node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 39/39
 ```
 
 Teste de aceitação de qualquer patch: uma sessão nova, lendo SÓ o contexto injetado, responde

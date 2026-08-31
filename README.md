@@ -1,12 +1,32 @@
-# skill-state v1.0.0 — estado de execução explícito para agentes
+# skill-state v1.1.0 — estado de execução explícito para agentes
 
-> Kit portátil do protocolo **SKILL.state** (Badhe, Tiwari & Chung, arXiv:2608.26263,
-> ago/2026), endurecido em uso real e generalizado para qualquer repositório.
-> **Zero dependências npm. Requer Node ≥ 20** (usa WebCrypto global). Git é
-> opcional (só para detecção de staleness).
->
-> Este README é escrito para **agentes** (Claude Code ou similar) e para os humanos que os
-> supervisionam. Leia inteiro uma vez; depois, o dia-a-dia é a `SKILL.md`.
+Guarda “onde paramos” em três arquivos no projeto, conferidos por um programa — não pela
+conversa, que esquece e inventa. Serve para Claude Code, Codex, Grok, OpenCode e Phi.
+
+**Zero `npm`. Node ≥ 20.** O dia-a-dia do agente é a `SKILL.md`. Você só instala.
+
+## Instalar (copie e cole)
+
+```bash
+# 1. baixar (uma vez no computador)
+git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state
+
+# 2. testar — a última linha deve ser "selftest: 39/39 verdes"
+node ~/.claude/skills/skill-state/bin/cli.mjs selftest
+
+# 3. ligar nos seus agentes (Claude, Codex, Grok, OpenCode, Phi)
+node ~/.claude/skills/skill-state/bin/cli.mjs install --global
+
+# 4. em CADA pasta de projeto que for usar
+cd pasta-do-seu-projeto
+node ~/.claude/skills/skill-state/bin/cli.mjs install --project
+```
+
+O passo 4 imprime um JSON. Peça ao agente para preenchê-lo com o estado real do projeto e
+aplicar. Depois, numa sessão nova, pergunte **“qual o próximo passo?”**.
+
+Guia curto, para quem nunca viu isto: **[INSTALL.md](INSTALL.md)**.  
+Codex: depois do passo 3, `/hooks` e confie as linhas novas.
 
 ---
 
@@ -137,29 +157,15 @@ avançou, rejeita com `stale-base` e o agente relê e re-propõe. No mesmo worki
 ainda serializa com lockfile (PID) + journal: dois processos não intercalam o jsonl; crash no
 meio é completado no próximo `apply`/`verify`.
 
-## 4. Instalação (resumo — passo a passo e modo global em `INSTALL.md`)
+## 4. Instalação
+
+O bloco no topo deste README é o caminho curto. O guia para seguir no terminal, inclusive
+se algo falhar, está em `INSTALL.md` (`install --global` no computador, `install --project`
+em cada pasta de trabalho).
 
 Dois modos, mesma pasta: **no projeto** (`<repo>/.claude/skills/skill-state/`, versionada com
 o código) ou **global** (`~/.claude/skills/skill-state/`, vale para todos os seus projetos).
 O estado (`.skill-state/`) é sempre por projeto.
-
-```bash
-# 1. obtenha a pasta (git clone ou unzip do release) no destino escolhido
-git clone https://github.com/JacksonFuck/skill-state <repo>/.claude/skills/skill-state   # projeto
-git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state        # global
-
-# 2. selftest (prova que o runtime funciona nesta máquina)
-node <destino>/skill-state/bin/cli.mjs selftest                    # → 36/36 verdes
-
-# 3. hooks: cole templates/hooks.snippet.json no objeto "hooks" do settings.json
-#    (do projeto ou o global ~/.claude/settings.json — ver INSTALL.md)
-
-# 4. estado inicial, por projeto
-cd <repo> && node <destino>/skill-state/bin/cli.mjs init [--domain dev|ops|pesquisa]
-#    preencha o genesis impresso, salve em /tmp/genesis.json e:
-node <destino>/skill-state/bin/cli.mjs apply --patch /tmp/genesis.json
-node <destino>/skill-state/bin/cli.mjs verify                      # ok, replay_ok
-```
 
 Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default `.skill-state`),
 `SKILL_STATE_BASE_REF` (ref de staleness; default `origin/main`), `CLAUDE_PROJECT_DIR`
@@ -174,9 +180,11 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 | `validate --patch f.json` | idem `apply --dry-run` | idem |
 | `verify` | cadeia íntegra + `replay==STATE.json` + staleness vs ref base | `{ok,cadeia,replay_ok,stale,...}` |
 | `archive [--keep N]` | recorta prefixo do log se verify verde (default keep 50) | `{ok,arquivados,ate_seq,artefato}` |
+| `install --global` | skill + hooks/adapters nos hosts detectados (idempotente) | texto por host |
+| `install --project` | `init` no cwd / `CLAUDE_PROJECT_DIR` | texto (schema + genesis) |
 | `context` | Σ resumido para o resume de **qualquer host** (Claude Code: hook SessionStart) | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 36 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 39 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
@@ -235,13 +243,14 @@ skill-state/
   README.md                   # este arquivo
   INSTALL.md                  # instalação passo a passo
   references/patch-format.md  # spec formal do envelope e do ⊕
-  bin/cli.mjs                 # runtime (init|context|flush-check|validate|apply|verify|archive|selftest)
+  bin/cli.mjs                 # runtime (init|context|flush-check|validate|apply|verify|archive|install|selftest)
+  bin/install.mjs             # --global (hosts) e --project (init)
   bin/merge.mjs               # operador ⊕ puro
   bin/schema.mjs              # validador de subset de JSON Schema (zero deps)
   bin/chain.mjs               # cadeia SHA-256 (WebCrypto)
   bin/selftest.mjs            # roda os fixtures
   fixtures/                   # 20 arquivos — o CONTRATO executável do protocolo
-  templates/                  # schema dev/ops/pesquisa, genesis, snippet de hooks
+  templates/                  # schema, genesis, snippet de hooks, adapters OpenCode/Phi
 ```
 
 Os fixtures são deliberadamente parte do kit: qualquer reimplementação (ex.: uma versão
@@ -253,7 +262,8 @@ Protocolo do paper *SKILL.state: Scalable Long-Horizon Agent Skills* (arXiv:2608
 Os endurecimentos desta implementação — schema fechado, `base_seq` otimista, trilha
 hash-encadeada, validação sobre o resultado do merge, hooks de re-injeção — nasceram de
 adoção em produção num monorepo real, onde o primeiro genesis flagrou a documentação de
-estado do próprio projeto mentindo havia seis semanas. v1.0.0.
+estado do próprio projeto mentindo havia seis semanas. v1.1.0 (instalador `--global` /
+`--project`).
 
 Obrigado a [@tcconnally](https://github.com/tcconnally) pela [issue #1](https://github.com/JacksonFuck/skill-state/issues/1):
 `apply` aceitava `seq` não-contíguo e só o `verify` acusava depois. O código `invalid-seq`,
