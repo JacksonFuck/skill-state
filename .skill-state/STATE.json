@@ -9,11 +9,11 @@
     ]
   },
   "derivado_de_github": {
-    "verificado_em": "2026-08-31T21:51:42Z",
-    "main_sha": "4d70ba3ef572dbb60935b3c91295648995762e1c",
+    "verificado_em": "2026-09-01T10:37:32Z",
+    "main_sha": "f1419d02e991165360d77258998c177c97f01a80",
     "testes": {
-      "total": 39,
-      "verdes": 39,
+      "total": 40,
+      "verdes": 40,
       "comando": "node ~/.claude/skills/skill-state/bin/cli.mjs selftest"
     },
     "fases": [
@@ -29,12 +29,19 @@
         "issue": null,
         "pr": 15,
         "status": "mergeada",
-        "nota": "HEAD 4d70ba3 v1.1.0"
+        "nota": "v1.1.0 no 4d70ba3"
+      },
+      {
+        "fase": "CLI canônico global; install --project não copia o binário",
+        "issue": null,
+        "pr": 16,
+        "status": "mergeada",
+        "nota": "v1.1.1 HEAD deste patch ainda vai stale até o commit seguinte"
       }
     ]
   },
   "intencao": {
-    "proximo_passo": "Mergear o PR v1.1.1 (CLI global) e, numa sessão nova neste repo, perguntar 'qual o próximo passo?' lendo só o context.",
+    "proximo_passo": "Nada pendente neste kit. Nos projetos, retomar pelo PRÓXIMO PASSO do context (APS #271, PANOPTIS #888, Quizz #8 PR, Synvera #59).",
     "pendencias": [],
     "bloqueios": [],
     "avisos_operacionais": [
@@ -44,8 +51,8 @@
     ]
   },
   "meta": {
-    "patch_seq": 5,
-    "ultimo_hash": "6af92783630d49c7bda5a382410f400d2f8afb7da120d6a351841f51b0291e4d",
-    "atualizado_em": "2026-09-01T10:31:05Z"
+    "patch_seq": 6,
+    "ultimo_hash": "645afa51aff23540ba2622a8515174b19b0964932ab936b1f543326a3580c631",
+    "atualizado_em": "2026-09-01T10:37:32Z"
   }
 }
