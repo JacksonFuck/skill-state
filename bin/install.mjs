@@ -209,6 +209,7 @@ function instalarProjeto(argv) {
     stdio: ["ignore", "pipe", "pipe"],
   });
   process.stdout.write(out);
+  log("CLI: node \"$HOME/.claude/skills/skill-state/bin/cli.mjs\" — install --project não copia o binário para <repo>/.claude/skills/.");
 }
 
 export async function main(argv) {

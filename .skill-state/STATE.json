@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "spec": {
+    "plano": "README.md",
+    "regras": [
+      "SKILL.md",
+      "INSTALL.md",
+      "references/patch-format.md"
+    ]
+  },
+  "derivado_de_github": {
+    "verificado_em": "2026-08-31T21:51:42Z",
+    "main_sha": "4d70ba3ef572dbb60935b3c91295648995762e1c",
+    "testes": {
+      "total": 39,
+      "verdes": 39,
+      "comando": "node ~/.claude/skills/skill-state/bin/cli.mjs selftest"
+    },
+    "fases": [
+      {
+        "fase": "endurecer protocolo pós-#1 (spec #3, tickets #4–#10)",
+        "issue": 3,
+        "pr": 14,
+        "status": "mergeada",
+        "nota": "v1.0 kit no 3b21b1c"
+      },
+      {
+        "fase": "instalador --global/--project e docs para leigos",
+        "issue": null,
+        "pr": 15,
+        "status": "mergeada",
+        "nota": "HEAD 4d70ba3 v1.1.0"
+      }
+    ]
+  },
+  "intencao": {
+    "proximo_passo": "Mergear o PR v1.1.1 (CLI global) e, numa sessão nova neste repo, perguntar 'qual o próximo passo?' lendo só o context.",
+    "pendencias": [],
+    "bloqueios": [],
+    "avisos_operacionais": [
+      "CLI: node \"$HOME/.claude/skills/skill-state/bin/cli.mjs\" — install --global (hosts) e install --project (init, NÃO copia o binário). Não chamar <repo>/.claude/skills/skill-state/bin/cli.mjs.",
+      "Grok: SessionStart pode ignorar stdout; se o PRÓXIMO PASSO não aparecer sozinho, pedir context.",
+      "Codex: hooks novos exigem /hooks trust."
+    ]
+  },
+  "meta": {
+    "patch_seq": 5,
+    "ultimo_hash": "6af92783630d49c7bda5a382410f400d2f8afb7da120d6a351841f51b0291e4d",
+    "atualizado_em": "2026-09-01T10:31:05Z"
+  }
+}

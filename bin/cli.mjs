@@ -26,6 +26,7 @@ import {
   openSync, closeSync, unlinkSync, fsyncSync, writeSync,
 } from "node:fs";
 import { execFileSync } from "node:child_process";
+import { homedir } from "node:os";
 import { join, dirname, relative, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { aplicarMergePatch, contarDelecoes } from "./merge.mjs";
@@ -36,14 +37,16 @@ import { rodarSelftest } from "./selftest.mjs";
 const AQUI = dirname(fileURLToPath(import.meta.url)); // .../skill-state/bin
 const RAIZ = process.env.CLAUDE_PROJECT_DIR ?? process.cwd();
 const REF_BASE = process.env.SKILL_STATE_BASE_REF ?? "origin/main";
-// Caminho deste CLI como o usuário deve invocá-lo: relativo à raiz do projeto quando instalado
-// nela; absoluto quando instalado globalmente (~/.claude/skills) — as mensagens ficam corretas
-// nos dois modos de instalação.
+// Caminho deste CLI como o usuário deve invocá-lo. Padrão: install --global
+// (~/.claude/skills/skill-state). install --project NÃO copia o binário para o repo.
 const doProjeto = (absoluto) => {
   const rel = relative(RAIZ, absoluto);
   return rel.startsWith("..") || isAbsolute(rel) ? absoluto : rel;
 };
-const CLI_CANONICO = doProjeto(join(AQUI, "cli.mjs"));
+const CLI_HOST = join(homedir(), ".claude", "skills", "skill-state", "bin", "cli.mjs");
+const CLI_INVOCA = existsSync(CLI_HOST)
+  ? `node "$HOME/.claude/skills/skill-state/bin/cli.mjs"`
+  : `node ${doProjeto(join(AQUI, "cli.mjs"))}`;
 const SKILL_CANONICA = doProjeto(join(AQUI, "..", "SKILL.md"));
 const args = process.argv.slice(2);
 const comando = args[0];
@@ -295,7 +298,7 @@ async function aplicar({ dryRun }) {
     return falha([{ path: "$", code: "malformed", message: `JSON inválido: ${e.message}` }]);
   }
   if (!existsSync(caminhos.schema)) {
-    return falha([{ path: "$", code: "schema-error", message: `sem ${caminhos.schema} — rode '${CLI_CANONICO} init' primeiro` }]);
+    return falha([{ path: "$", code: "schema-error", message: `sem ${caminhos.schema} — rode '${CLI_INVOCA} init' primeiro` }]);
   }
   if (dryRun) {
     const estado = existsSync(caminhos.estado) ? lerJson(caminhos.estado) : null;
@@ -460,7 +463,7 @@ function contexto() {
     stale
       ? `⚠ derivado_de_github STALE (estado=${estado.derivado_de_github?.main_sha?.slice(0, 7)} ≠ ${REF_BASE}=${shaRemoto.slice(0, 7)}, verificado_em=${estado.derivado_de_github?.verificado_em}) — re-derive da fonte antes de confiar.`
       : `derivado_de_github verificado_em=${estado.derivado_de_github?.verificado_em}${shaRemoto === null ? " (staleness indeterminada — sem git)" : " (base ok)"}`,
-    `Protocolo: ${SKILL_CANONICA} — mudou algo relevante? proponha ΔΣ via 'node ${CLI_CANONICO} apply --patch -'.`,
+    `Protocolo: ${SKILL_CANONICA} — mudou algo relevante? proponha ΔΣ via '${CLI_INVOCA} apply --patch -'.`,
   ];
   console.log(JSON.stringify({ hookSpecificOutput: { hookEventName: "SessionStart", additionalContext: linhas.join("\n") } }));
   return 0;
@@ -471,7 +474,7 @@ function checarFlush() {
   const idadeMin = Math.round((Date.now() - statSync(caminhos.estado).mtimeMs) / 60000);
   if (idadeMin > 30) {
     console.log(
-      `skill-state: Σ não recebe patch há ${idadeMin}min e o contexto vai compactar — se algo relevante mudou (passo concluído, bloqueio, decisão), flush ΔΣ AGORA: node ${CLI_CANONICO} apply --patch <arquivo>`,
+      `skill-state: Σ não recebe patch há ${idadeMin}min e o contexto vai compactar — se algo relevante mudou (passo concluído, bloqueio, decisão), flush ΔΣ AGORA: ${CLI_INVOCA} apply --patch <arquivo>`,
     );
   }
   return 0;
@@ -502,7 +505,7 @@ function iniciar() {
   const template = readFileSync(join(AQUI, "..", "templates", "genesis.template.json"), "utf8");
   console.log(
     `\nPróximo passo — preencha o genesis (template abaixo), salve num arquivo temporário e aplique:\n` +
-      `  node ${CLI_CANONICO} apply --patch /tmp/genesis.json --dir ${dirRelativo}\n\n${template}`,
+      `  ${CLI_INVOCA} apply --patch - --dir ${dirRelativo}\n\n${template}`,
   );
   return 0;
 }

@@ -173,6 +173,13 @@ export async function rodarSelftest({ validarPatch, dirFixtures }) {
   );
   const textoSkill = readFileSync(join(raizSkill, "SKILL.md"), "utf8");
   caso("SKILL.md não aponta /tmp/patch.json", !textoSkill.includes("/tmp/patch.json"));
+  caso(
+    "SKILL.md e hooks invocam o CLI global, não o do projeto",
+    textoSkill.includes("$HOME/.claude/skills/skill-state/bin/cli.mjs")
+      && !textoSkill.includes("node .claude/skills/skill-state")
+      && textoHooks.includes("$HOME/.claude/skills/skill-state/bin/cli.mjs")
+      && !textoHooks.includes("${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state"),
+  );
 
   const estadoCheio = structuredClone(estado);
   estadoCheio.intencao.pendencias = [1, 2, 3, 4, 5].map((n) => ({

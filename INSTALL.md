@@ -28,7 +28,7 @@ git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-stat
 node ~/.claude/skills/skill-state/bin/cli.mjs selftest
 ```
 
-A última linha deve ser: `selftest: 39/39 verdes`. Se falhar, o Node está antigo ou o download quebrou — não continue.
+A última linha deve ser: `selftest: 40/40 verdes`. Se falhar, o Node está antigo ou o download quebrou — não continue.
 
 **3. Ligar nos agentes**
 
@@ -54,6 +54,7 @@ node ~/.claude/skills/skill-state/bin/cli.mjs install --project
 ```
 
 O comando cria a pasta `.skill-state/` e **imprime um modelo JSON** (o genesis: o primeiro registro).
+Não copia o CLI para dentro do projeto — o binário continua em `~/.claude/skills/skill-state/`.
 
 Peça ao agente, nessa mesma pasta:
 
@@ -92,6 +93,8 @@ O mesmo `.skill-state/` vale para Claude, Codex, Grok, OpenCode e Phi. O handoff
 | Sintoma | O que fazer |
 |---|---|
 | `selftest` falha | `node --version` ≥ 20; baixe de novo o clone |
+| `Exit code 2` sem texto ao retomar | O agente rodou `ls .skill-state && node <repo>/.claude/skills/...`. Esse caminho não existe. Use `node ~/.claude/skills/skill-state/bin/cli.mjs context` |
+| `Cannot find module .../<repo>/.claude/skills/skill-state/bin/cli.mjs` | Idem: CLI é global, não mora no repo |
 | Agente não sabe o próximo passo | Você pulou o `--project` ou o genesis nesta pasta? |
 | Codex ignora o estado | `/hooks` → confiar as linhas skill-state |
 | Grok não injeta sozinho | Peça `context` na primeira mensagem |

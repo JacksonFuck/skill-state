@@ -1,4 +1,4 @@
-# skill-state v1.1.0 — estado de execução explícito para agentes
+# skill-state v1.1.1 — estado de execução explícito para agentes
 
 Guarda “onde paramos” em três arquivos no projeto, conferidos por um programa — não pela
 conversa, que esquece e inventa. Serve para Claude Code, Codex, Grok, OpenCode e Phi.
@@ -11,7 +11,7 @@ conversa, que esquece e inventa. Serve para Claude Code, Codex, Grok, OpenCode e
 # 1. baixar (uma vez no computador)
 git clone https://github.com/JacksonFuck/skill-state ~/.claude/skills/skill-state
 
-# 2. testar — a última linha deve ser "selftest: 39/39 verdes"
+# 2. testar — a última linha deve ser "selftest: 40/40 verdes"
 node ~/.claude/skills/skill-state/bin/cli.mjs selftest
 
 # 3. ligar nos seus agentes (Claude, Codex, Grok, OpenCode, Phi)
@@ -163,9 +163,11 @@ O bloco no topo deste README é o caminho curto. O guia para seguir no terminal,
 se algo falhar, está em `INSTALL.md` (`install --global` no computador, `install --project`
 em cada pasta de trabalho).
 
-Dois modos, mesma pasta: **no projeto** (`<repo>/.claude/skills/skill-state/`, versionada com
-o código) ou **global** (`~/.claude/skills/skill-state/`, vale para todos os seus projetos).
-O estado (`.skill-state/`) é sempre por projeto.
+O CLI mora **uma vez no computador** (`~/.claude/skills/skill-state/`, passo `install --global`).
+O estado mora **em cada projeto** (`.skill-state/`, passo `install --project`).
+`install --project` **não** copia o binário para `<repo>/.claude/skills/` — quem chama esse
+caminho toma `MODULE_NOT_FOUND`, ou um `ls` com exit 2 se a pasta de estado ainda não existe.
+Vendorizar a skill no repo é opcional e feito à mão; o instalador não faz isso.
 
 Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default `.skill-state`),
 `SKILL_STATE_BASE_REF` (ref de staleness; default `origin/main`), `CLAUDE_PROJECT_DIR`
@@ -184,7 +186,7 @@ Configuração opcional (ambiente): `SKILL_STATE_DIR` (pasta do estado; default 
 | `install --project` | `init` no cwd / `CLAUDE_PROJECT_DIR` | texto (schema + genesis) |
 | `context` | Σ resumido para o resume de **qualquer host** (Claude Code: hook SessionStart) | `{hookSpecificOutput:{...}}` |
 | `flush-check` | aviso de flush pendente (PreCompact) | texto ou nada |
-| `selftest` | contrato do protocolo sobre `fixtures/` | 39 casos, exit 0/1 |
+| `selftest` | contrato do protocolo sobre `fixtures/` | 40 casos, exit 0/1 |
 
 Todos aceitam `--dir <pasta>`. Exit codes: 0 sucesso, 1 rejeição/falha, 2 uso incorreto.
 
@@ -263,7 +265,7 @@ Os endurecimentos desta implementação — schema fechado, `base_seq` otimista,
 hash-encadeada, validação sobre o resultado do merge, hooks de re-injeção — nasceram de
 adoção em produção num monorepo real, onde o primeiro genesis flagrou a documentação de
 estado do próprio projeto mentindo havia seis semanas. v1.1.0 (instalador `--global` /
-`--project`).
+`--project`). v1.1.1 (CLI canônico é o global; `install --project` não copia o binário).
 
 Obrigado a [@tcconnally](https://github.com/tcconnally) pela [issue #1](https://github.com/JacksonFuck/skill-state/issues/1):
 `apply` aceitava `seq` não-contíguo e só o `verify` acusava depois. O código `invalid-seq`,

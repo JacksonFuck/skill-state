@@ -23,7 +23,7 @@ O raciocínio é efêmero; o estado é permanente; a trilha de patches é audit�
 
 | Situação | Ação |
 |---|---|
-| Sessão nova num projeto com `STATE.json` | Qualquer host: rode `cli.mjs context` no resume. No Claude Code o hook SessionStart já fez isso. Confie no `PRÓXIMO PASSO`; se STALE, re-derive da fonte primeiro |
+| Sessão nova num projeto com `STATE.json` | Qualquer host: `node "$HOME/.claude/skills/skill-state/bin/cli.mjs" context`. No Claude Code o hook SessionStart já fez isso. Confie no `PRÓXIMO PASSO`; se STALE, re-derive da fonte primeiro. Stdout vazio = sem Σ → proponha `install --project`. Não chame `<repo>/.claude/skills/skill-state/bin/cli.mjs` |
 | Passo concluído / decisão tomada / bloqueio encontrado | Proponha ΔΣ **agora**, não no fim da sessão |
 | Vai escrever handoff, resumo de sessão, "onde paramos" | Patch primeiro; a prosa cita o `seq` do patch |
 | Contexto prestes a compactar | Flush do ΔΣ pendente antes (o hook PreCompact lembra, mas é best-effort) |
@@ -38,8 +38,19 @@ O raciocínio é efêmero; o estado é permanente; a trilha de patches é audit�
 | `STATE.schema.json` | contrato do domínio | humano/agente, raramente (mudança revisada) |
 | `patches.jsonl` | trilha append-only de ΔΣ, hash-encadeada | só o runtime |
 
-Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
+Estado: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 `SKILL_STATE_DIR` — um diretório por fluxo de trabalho, ex.: um por spec).
+
+CLI (uma vez no host, **não** por projeto):
+
+```bash
+node "$HOME/.claude/skills/skill-state/bin/cli.mjs" <comando>
+```
+
+`install --global` liga esse binário. `install --project` só cria `.skill-state/` —
+**não** copia o CLI para `<repo>/.claude/skills/`. Não faça
+`ls .skill-state && node <repo>/.claude/skills/skill-state/bin/cli.mjs`: pasta
+ausente → `ls` exit 2 sem mensagem; pasta presente → `MODULE_NOT_FOUND`.
 
 ## O Σ tem duas zonas com autoridade DIFERENTE
 
@@ -54,14 +65,14 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 
 ## Fluxo obrigatório
 
-1. **Ao retomar:** qualquer host chama `cli.mjs context` (Claude Code: o hook SessionStart
-   já injetou). Aja pelo `PRÓXIMO PASSO`.
+1. **Ao retomar:** qualquer host chama `node "$HOME/.claude/skills/skill-state/bin/cli.mjs" context`
+   (Claude Code: o hook SessionStart já injetou). Aja pelo `PRÓXIMO PASSO`.
 2. **Trabalhe.** Raciocínio, tentativas e leituras são efêmeros — não precisam sobreviver.
 3. **Mudou algo que a próxima sessão precisa saber?** Aplique o envelope via stdin
    (não use `/tmp` compartilhado entre sessões):
 
    ```bash
-   node .claude/skills/skill-state/bin/cli.mjs apply --patch - <<'EOF'
+   node "$HOME/.claude/skills/skill-state/bin/cli.mjs" apply --patch - <<'EOF'
    { "seq": <meta.patch_seq + 1>, "base_seq": <meta.patch_seq atual>,
      "autor": "claude/<branch>", "quando": "<ISO-8601 UTC>",
      "motivo": "1 frase — por que este patch existe",
@@ -97,8 +108,8 @@ Local default: `.skill-state/` na raiz do projeto (mude com `--dir <pasta>` ou
 ## Verificação
 
 ```bash
-node .claude/skills/skill-state/bin/cli.mjs verify     # cadeia + replay + staleness
-node .claude/skills/skill-state/bin/cli.mjs selftest   # contrato do protocolo (fixtures) — 39/39
+node "$HOME/.claude/skills/skill-state/bin/cli.mjs" verify     # cadeia + replay + staleness
+node "$HOME/.claude/skills/skill-state/bin/cli.mjs" selftest   # contrato do protocolo (fixtures) — 40/40
 ```
 
 Teste de aceitação de qualquer patch: uma sessão nova, lendo SÓ o contexto injetado, responde
