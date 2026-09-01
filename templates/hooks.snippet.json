@@ -1,12 +1,12 @@
 {
-  "//": "Cole estas duas chaves dentro do objeto 'hooks' do settings.json (crie o objeto se não existir; preserve hooks já configurados). Instalação NO PROJETO: <repo>/.claude/settings.json, comandos como estão. Instalação GLOBAL: ~/.claude/settings.json, trocando o caminho do script por \"$HOME/.claude/skills/skill-state/bin/cli.mjs\" nos dois comandos. Estado fora de .skill-state/: acrescente '--dir <pasta>' ou exporte SKILL_STATE_DIR.",
+  "//": "Cole estas duas chaves dentro do objeto 'hooks' do settings.json (crie o objeto se não existir; preserve hooks já configurados). Padrão = install --global: ~/.claude/settings.json com os comandos abaixo. Estado fora de .skill-state/: acrescente '--dir <pasta>' ou exporte SKILL_STATE_DIR. O CLI não mora em <repo>/.claude/skills/.",
   "SessionStart": [
     {
       "matcher": "startup|resume|compact",
       "hooks": [
         {
           "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" context"
+          "command": "node \"$HOME/.claude/skills/skill-state/bin/cli.mjs\" context"
         }
       ]
     }
@@ -17,7 +17,7 @@
       "hooks": [
         {
           "type": "command",
-          "command": "node \"${CLAUDE_PROJECT_DIR:-.}/.claude/skills/skill-state/bin/cli.mjs\" flush-check"
+          "command": "node \"$HOME/.claude/skills/skill-state/bin/cli.mjs\" flush-check"
         }
       ]
     }
